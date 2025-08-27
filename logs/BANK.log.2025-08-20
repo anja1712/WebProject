@@ -1,0 +1,21 @@
+2025-08-20 18:22:47,838 INFO  [main] com.bank.repository.CustomerRepositoryTest: Starting CustomerRepositoryTest using Java 21.0.8 with PID 119840 (started by anja in /home/anja/Downloads/II godina/Web projekat/bank)
+2025-08-20 18:22:47,841 INFO  [main] com.bank.repository.CustomerRepositoryTest: The following 1 profile is active: "test"
+2025-08-20 18:22:49,492 INFO  [main] com.zaxxer.hikari.HikariDataSource: HikariPool-1 - Starting...
+2025-08-20 18:22:49,677 INFO  [main] com.zaxxer.hikari.pool.HikariPool: HikariPool-1 - Added connection conn0: url=jdbc:h2:mem:testdb user=BANK006
+2025-08-20 18:22:49,679 INFO  [main] com.zaxxer.hikari.HikariDataSource: HikariPool-1 - Start completed.
+2025-08-20 18:22:49,865 INFO  [main] org.hibernate.jpa.internal.util.LogHelper: HHH000204: Processing PersistenceUnitInfo [name: default]
+2025-08-20 18:22:49,903 INFO  [main] org.hibernate.Version: HHH000412: Hibernate ORM core version 6.6.22.Final
+2025-08-20 18:22:49,929 INFO  [main] org.hibernate.cache.internal.RegionFactoryInitiator: HHH000026: Second-level cache disabled
+2025-08-20 18:22:50,190 WARN  [main] org.hibernate.orm.deprecation: HHH90000025: H2Dialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
+2025-08-20 18:22:50,220 INFO  [main] org.hibernate.orm.connections.pooling: HHH10001005: Database info:
+	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-1)']
+	Database driver: undefined/unknown
+	Database version: 2.3.232
+	Autocommit mode: undefined/unknown
+	Isolation level: undefined/unknown
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2025-08-20 18:22:51,235 INFO  [main] org.hibernate.engine.transaction.jta.platform.internal.JtaPlatformInitiator: HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2025-08-20 18:22:52,678 INFO  [main] com.bank.repository.CustomerRepositoryTest: Started CustomerRepositoryTest in 5.096 seconds (process running for 6.059)
+2025-08-20 18:22:53,212 INFO  [SpringApplicationShutdownHook] com.zaxxer.hikari.HikariDataSource: HikariPool-1 - Shutdown initiated...
+2025-08-20 18:22:53,216 INFO  [SpringApplicationShutdownHook] com.zaxxer.hikari.HikariDataSource: HikariPool-1 - Shutdown completed.
