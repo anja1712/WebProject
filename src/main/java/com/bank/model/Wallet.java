@@ -1,28 +1,16 @@
 package com.bank.model;
 
-import java.math.BigDecimal;
-
-import javax.validation.constraints.NotNull;
-
-import org.hibernate.annotations.GenericGenerator;
-import org.hibernate.annotations.Parameter;
-
 import com.bank.utils.Constants;
-
-import jakarta.persistence.Access;
-import jakarta.persistence.AccessType;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.OneToOne;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.GenericGenerator;
+import org.hibernate.annotations.Parameter;
+
+import javax.validation.constraints.NotNull;
+import java.math.BigDecimal;
 
 @Entity
 @AllArgsConstructor
@@ -64,8 +52,8 @@ public class Wallet extends AbstractEntity {
 	private Customer customer;
 
 	@NotNull
-	@Column(name = "accumulation")
-	private Boolean accumulation;
+	@Column(name = "savings")
+	private Boolean savings;
 
 	@NotNull
 	@Column(name = "archive")

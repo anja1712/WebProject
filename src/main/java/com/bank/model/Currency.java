@@ -1,30 +1,17 @@
 package com.bank.model;
 
-import java.math.BigDecimal;
-
-import javax.validation.constraints.NotNull;
-
+import com.bank.model.enums.CurrencyType;
+import com.bank.utils.Constants;
+import jakarta.persistence.*;
+import lombok.*;
 import org.hibernate.annotations.GenericGenerator;
 import org.hibernate.annotations.Parameter;
 
-import com.bank.model.enums.CurrencyType;
-import com.bank.utils.Constants;
-
-import jakarta.persistence.Access;
-import jakarta.persistence.AccessType;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.NoArgsConstructor;
+import javax.validation.constraints.NotNull;
+import java.math.BigDecimal;
 
 @Entity
-@AllArgsConstructor
-@NoArgsConstructor
+@RequiredArgsConstructor
 @Data
 @EqualsAndHashCode(callSuper = false)
 @Access(AccessType.FIELD)
@@ -42,9 +29,15 @@ public class Currency extends AbstractEntity {
 	
 	@NotNull
 	@Column(name = "name")
+	@Enumerated(EnumType.STRING)
 	private CurrencyType name;
 
 	@NotNull
 	@Column(name = "currency_value")
 	private BigDecimal currencyValue;
+
+	public Currency(CurrencyType currencyType, BigDecimal bigDecimal) {
+		this.name = currencyType;
+		this.currencyValue = bigDecimal;
+	}
 }

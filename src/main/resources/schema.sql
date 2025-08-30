@@ -110,7 +110,7 @@ init_value numeric(10, 2) NOT NULL,
 current_value numeric(10, 2) NOT NULL,
 customer_id bigint,
 currency_id bigint,
-accumulation boolean NOT NULL,
+savings boolean NOT NULL,
 archive boolean NOT NULL,
 CONSTRAINT wallet_pkey PRIMARY KEY (id),
 CONSTRAINT wallet_customer_fkey FOREIGN KEY (customer_id)
@@ -171,7 +171,7 @@ wallet_id bigint NOT NULL,
 name character varying(50) NOT NULL,
 recurring boolean NOT NULL DEFAULT false, --promenjeno u boolean
 amount numeric(10, 2) NOT NULL,
-frequency character varying(10) NOT NULL,
+frequency character varying(10),
 account_type character varying(10) NOT NULL,
 CONSTRAINT transaction_pkey PRIMARY KEY (id),
 CONSTRAINT transaction_customer_fkey FOREIGN KEY (customer_id)

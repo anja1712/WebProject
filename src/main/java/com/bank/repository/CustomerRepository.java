@@ -1,12 +1,11 @@
 package com.bank.repository;
 
-import java.util.Optional;
-
+import com.bank.model.Customer;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-import com.bank.model.Customer;
-import com.bank.model.enums.Role;
+import javax.validation.constraints.NotNull;
 
 public interface CustomerRepository extends JpaRepository<Customer, Long> {
 
+    Customer getCustomerById(@NotNull long id);
 }

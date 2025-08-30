@@ -54,9 +54,9 @@ password character varying(50) NOT NULL,
 profile_picture character varying(100) NOT NULL,
 first_name character varying(50) NOT NULL,
 last_name character varying(50) NOT NULL,
-CONSTRAINT customer_pkey PRIMARY KEY (id),
-CONSTRAINT customer_currency_fkey FOREIGN KEY (currency_id)
-REFERENCES bank.currency (id)
+CONSTRAINT customer_pkey PRIMARY KEY (id)
+-- CONSTRAINT customer_currency_fkey FOREIGN KEY (currency_id)
+-- REFERENCES bank.currency (id)
 );
 GRANT ALL ON TABLE bank.customer TO bank006;
 
@@ -94,7 +94,7 @@ init_value numeric(10, 2) NOT NULL,
 current_value numeric(10, 2) NOT NULL,
 customer_id bigint,
 currency_id bigint,
-accumulation boolean NOT NULL,
+savings boolean NOT NULL,
 archive boolean NOT NULL,
 CONSTRAINT wallet_pkey PRIMARY KEY (id),
 CONSTRAINT wallet_customer_fkey FOREIGN KEY (customer_id)
@@ -141,7 +141,7 @@ wallet_id bigint NOT NULL,
 name character varying(50) NOT NULL,
 recurring character varying(10) NOT NULL,
 amount numeric(10, 2) NOT NULL,
-frequency character varying(10) NOT NULL,
+frequency character varying(10),
 account_type character varying(10) NOT NULL,
 CONSTRAINT transaction_pkey PRIMARY KEY (id),
 CONSTRAINT transaction_customer_fkey FOREIGN KEY (customer_id)

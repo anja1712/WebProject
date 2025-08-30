@@ -1,36 +1,19 @@
 package com.bank.model;
 
-import java.math.BigDecimal;
-import java.util.Date;
-
-import javax.validation.constraints.NotNull;
-
-import org.hibernate.annotations.GenericGenerator;
-import org.hibernate.annotations.Parameter;
-
 import com.bank.model.enums.AccountType;
 import com.bank.model.enums.Frequency;
 import com.bank.utils.Constants;
-
-import jakarta.persistence.Access;
-import jakarta.persistence.AccessType;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.OneToOne;
-import jakarta.persistence.Table;
-import jakarta.persistence.Temporal;
-import jakarta.persistence.TemporalType;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.GenericGenerator;
+import org.hibernate.annotations.Parameter;
+
+import javax.validation.constraints.NotNull;
+import java.math.BigDecimal;
+import java.util.Date;
 
 @Entity
 @AllArgsConstructor
@@ -75,7 +58,6 @@ public class Transaction extends AbstractEntity {
 	@Column(name = "recurring")
 	private Boolean recurring;
 
-	@NotNull
 	@Enumerated(EnumType.STRING)
 	@Column(name = "frequency") // Monthly ili weekly
 	private Frequency frequency;
