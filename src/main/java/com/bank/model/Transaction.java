@@ -70,4 +70,12 @@ public class Transaction extends AbstractEntity {
 	@JoinColumn(name = "customer_id", updatable = true)
 	private Customer customer;
 
+	//dodatna polja za transakcije izmedju 2 novcanika 
+	@ManyToOne(fetch = FetchType.LAZY, optional = true)       //moze postojavi vise transakcija nad jednim novcanikom
+	@JoinColumn(name = "source_wallet_id")
+	private Wallet sourceWallet;
+	
+	@ManyToOne(fetch = FetchType.LAZY, optional = true)
+	@JoinColumn(name = "destination_wallet_id")
+	private Wallet destinationWallet;
 }
