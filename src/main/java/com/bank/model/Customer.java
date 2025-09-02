@@ -7,8 +7,6 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.GenericGenerator;
-import org.hibernate.annotations.Parameter;
 
 import javax.validation.constraints.NotNull;
 import java.util.Date;
@@ -28,11 +26,13 @@ public class Customer extends AbstractEntity {
 	@Id
 	@NotNull
 	@Column(name = "id", nullable = false, updatable = false)
-	@GeneratedValue(generator = "CUSTOMER_ENTITY_ID_GENERATOR")
-	@GenericGenerator(name = "CUSTOMER_ENTITY_ID_GENERATOR", strategy = "org.hibernate.id.enhanced.SequenceStyleGenerator", parameters = {
-			@Parameter(name = "sequence_name", value = Constants.DB_SCHEMA + ".seq_customer"),
-			@Parameter(name = "optimizer", value = "hilo"), @Parameter(name = "increment_size", value = "1") })
-	private long id;
+	@GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "seq_customer")
+	@SequenceGenerator(
+			name = "seq_customer",
+			sequenceName = Constants.DB_SCHEMA + ".seq_customer",
+			allocationSize = 1
+	)
+	private Long id;
 
 	@NotNull
 	@Column(name = "first_name")

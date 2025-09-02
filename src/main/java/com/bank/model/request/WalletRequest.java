@@ -1,5 +1,6 @@
 package com.bank.model.request;
 
+import com.bank.model.enums.CurrencyType;
 import lombok.Builder;
 import lombok.Data;
 
@@ -11,7 +12,7 @@ public class WalletRequest {
     private String name;
     private BigDecimal initialValue;
     private BigDecimal currentValue;
-    private String currency;
+    private CurrencyType currencyType;
     private String address;
     private Long customerId;
     private Boolean savings;

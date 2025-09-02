@@ -30,9 +30,9 @@ public class WalletService {
             throw new RuntimeException("Customer with id " + request.getCustomerId() + " not found");
         }
 
-        Currency currency = currencyRepository.getCurrencyByName(CurrencyType.valueOf(request.getCurrency().toUpperCase()));
+        Currency currency = currencyRepository.getCurrencyByName(CurrencyType.valueOf(request.getCurrencyType().name()));
         if (currency == null) {
-            throw new RuntimeException("Currency with name " + request.getCurrency() + " not found");
+            throw new RuntimeException("Currency with name " + request.getCurrencyType() + " not found");
         }
 
         Wallet walletToSave = new Wallet();
@@ -54,9 +54,9 @@ public class WalletService {
             throw new RuntimeException("Wallet with id " + id + " not found");
         }
 
-        Currency currency = currencyRepository.getCurrencyByName(CurrencyType.valueOf(request.getCurrency().toUpperCase()));
+        Currency currency = currencyRepository.getCurrencyByName(CurrencyType.valueOf(request.getCurrencyType().name()));
         if (currency == null) {
-            throw new RuntimeException("Currency with name " + request.getCurrency() + " not found");
+            throw new RuntimeException("Currency with name " + request.getCurrencyType() + " not found");
         }
 
         if (request.getName() != null)
@@ -68,7 +68,7 @@ public class WalletService {
         if (request.getSavings() != null)
             wallet.setSavings(request.getSavings());
 
-        if(request.getCurrency() != null)
+        if(request.getCurrencyType() != null)
             wallet.setCurrency(currency);
 
         return walletRepository.save(wallet);
