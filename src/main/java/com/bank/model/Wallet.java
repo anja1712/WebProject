@@ -66,8 +66,20 @@ public class Wallet extends AbstractEntity {
 	@NotNull
 	@Column(name = "accumulation")
 	private Boolean accumulation;
+	
+	@NotNull
+	@Column(name = "savings")
+	private Boolean savings;
 
 	@NotNull
 	@Column(name = "archive")
 	private Boolean archive;
+	
+	@NotNull
+	@Column(name = "goal_amount")
+	private BigDecimal goalAmount;
+	
+	@NotNull
+	@Column(name = "goal_deadline")
+	private BigDecimal goalDeadline;
 }

@@ -9,4 +9,6 @@ import com.bank.model.enums.Role;
 
 public interface CustomerRepository extends JpaRepository<Customer, Long> {
 
+	Customer getCustomerById(long customerId);
+
 }
