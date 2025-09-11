@@ -1,13 +1,11 @@
 package com.bank.model;
 
-import com.bank.model.enums.AccountType;
 import com.bank.model.enums.Frequency;
+import com.bank.model.enums.TransactionType;
 import com.bank.utils.Constants;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import org.hibernate.annotations.GenericGenerator;
 import org.hibernate.annotations.Parameter;
 
@@ -22,6 +20,7 @@ import java.util.Date;
 @EqualsAndHashCode(callSuper = false)
 @Access(AccessType.FIELD)
 @Table(name = "transaction", schema = Constants.DB_SCHEMA)
+@Builder
 public class Transaction extends AbstractEntity {
 
 	@Id
@@ -38,21 +37,29 @@ public class Transaction extends AbstractEntity {
 	private String name;
 
 	@NotNull
+	@Column(name = "currency")
+	private String currency;
+
+	@NotNull
 	@Column(name = "amount")
 	private BigDecimal amount;
 
 	@NotNull
 	@Enumerated(EnumType.STRING)
-	@Column(name = "account_type") // Admin ili User
-	private AccountType type;
+	@Column(name = "transaction_type") // Admin ili User
+	private TransactionType transactionType;
 
-	@OneToOne(fetch = FetchType.LAZY, optional = true)
-	@JoinColumn(name = "category_id", updatable = true)
-	private Category category;
+	@NotNull
+	@Column(name = "category")
+	private String category;
 
 	@Temporal(TemporalType.TIMESTAMP)
 	@Column(name = "transaction_date", nullable = true, updatable = true)
 	protected Date transactionDate;
+
+	@Temporal(TemporalType.TIMESTAMP)
+	@Column(name = "modifitcation_date", nullable = true, updatable = true)
+	protected Date modificationDate;
 
 	@NotNull
 	@Column(name = "recurring")
@@ -62,19 +69,22 @@ public class Transaction extends AbstractEntity {
 	@Column(name = "frequency") // Monthly ili weekly
 	private Frequency frequency;
 
-	@ManyToOne(fetch = FetchType.LAZY, optional = true)
+	@ManyToOne(fetch = FetchType.EAGER, optional = true)
 	@JoinColumn(name = "wallet_id", updatable = true)
 	private Wallet wallet;
 
-	@OneToOne(fetch = FetchType.LAZY, optional = true)
+	@JsonIgnore
+	@OneToOne(fetch = FetchType.EAGER, optional = true)
 	@JoinColumn(name = "customer_id", updatable = true)
 	private Customer customer;
 
+	@JsonIgnore
 	//dodatna polja za transakcije izmedju 2 novcanika 
 	@ManyToOne(fetch = FetchType.LAZY, optional = true)       //moze postojavi vise transakcija nad jednim novcanikom
 	@JoinColumn(name = "source_wallet_id")
 	private Wallet sourceWallet;
-	
+
+	@JsonIgnore
 	@ManyToOne(fetch = FetchType.LAZY, optional = true)
 	@JoinColumn(name = "destination_wallet_id")
 	private Wallet destinationWallet;

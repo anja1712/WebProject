@@ -1,28 +1,26 @@
 package com.bank.model.request;
 
-import java.math.BigDecimal;
-import java.sql.Date;
-
-import com.bank.model.Category;
-//import com.bank.model.Wallet;
-import com.bank.model.enums.AccountType;
 import com.bank.model.enums.Frequency;
-
+import com.bank.model.enums.TransactionType;
 import lombok.Builder;
 import lombok.Data;
+
+import java.math.BigDecimal;
+import java.sql.Date;
 
 @Data
 @Builder
 public class TransactionRequest {
 	private String name;
+    private String currency;
     private BigDecimal amount;
-    private Category category;
-    private Long categoryId;
-    private AccountType type;
+    private String category;
+    private TransactionType type;
     private Date transactionDate;
-    private long fromWalletId;
-    private long toWalletId;
-    private long customerId;
+    private Long walletId;
+    private Long sourceWalletId;
+    private Long destinationWalletId;
+    private Long customerId;
     private Boolean recurring;
     private Frequency frequency;
 }

@@ -13,6 +13,7 @@ public class WalletRequest {
     private BigDecimal initialValue;
     private BigDecimal currentValue;
     private CurrencyType currencyType;
+    //what address for
     private String address;
     private Long customerId;
     private Boolean savings;

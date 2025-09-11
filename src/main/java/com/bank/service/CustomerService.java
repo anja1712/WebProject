@@ -24,6 +24,9 @@ public class CustomerService {
         customer.setRole(Role.USER);
         customer.setProfilePicture("profile.png");
 
+        //unless admin is registering a user
+        customer.setAdminNote(null);
+
         return customerRepository.save(customer);
     }
 
@@ -40,6 +43,8 @@ public class CustomerService {
         existingCustomer.setPassword(update.getPassword());
         existingCustomer.setRole(update.getRole());
         existingCustomer.setProfilePicture(update.getProfilePicture());
+
+        existingCustomer.setAdminNote(null);
         return customerRepository.save(existingCustomer);
     }
 

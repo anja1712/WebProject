@@ -1,33 +1,28 @@
 package com.bank.controller;
 
-import java.util.List;
-
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
-
 import com.bank.model.Transaction;
-//import com.bank.model.Wallet;
+import com.bank.model.dto.TransactionOverview;
 import com.bank.model.enums.PeriodType;
 import com.bank.model.request.TransactionRequest;
-//import com.bank.model.request.WalletRequest;
+import com.bank.model.request.TransactionStatisticsRequest;
 import com.bank.service.TransactionService;
-
 import dto.TransactionDTO;
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
+@RequestMapping("/transactions")
 @RequiredArgsConstructor
-
 public class TransactionController {
 	
 	private final TransactionService transactionService;
 	
-	 @PostMapping("transaction/create")
-	 public Transaction addTransaction(@RequestBody TransactionRequest transactionRequest) { return transactionService.addTransaction(transactionRequest); }
+	 @PostMapping("/make")
+	 public Transaction makeTransaction(@RequestBody TransactionRequest transactionRequest) {
+		 return transactionService.makeTransaction(transactionRequest);
+	 }
 	
 	 
 	 @GetMapping("/grouped")
@@ -40,18 +35,21 @@ public class TransactionController {
 	 
 	 @PostMapping("/transfer")
 	 public String transferFunds(@RequestBody TransactionRequest transactionRequest) {
-	    transactionService.transferFunds(
-	    transactionRequest.getFromWalletId(),
-	    transactionRequest.getToWalletId(),
-	    transactionRequest.getAmount()
-	     );
-	     return "Transfer successful";
+	     return transactionService.transferFunds(
+				 transactionRequest.getSourceWalletId(),
+				 transactionRequest.getDestinationWalletId(),
+				 transactionRequest.getAmount()
+		 );
 	 }
 	 
-	 @PostMapping("/transaction/{id}/disableRecurring")
+	 @PutMapping("/{id}/disableRecurring")
 	 public String disableRecurring(@PathVariable Long id) {
 	     transactionService.disableRecurring(id);
 	     return "Recurring disabled for transaction " + id;
 	 }
 
+	 @GetMapping("/statistics")
+	 public TransactionOverview getStatisticsForTimePeriod(@RequestBody TransactionStatisticsRequest transactionStatisticsRequest) {
+		 return transactionService.getStatisticsForTimePeriod(transactionStatisticsRequest);
+	 }
 }

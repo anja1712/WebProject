@@ -1,6 +1,7 @@
 package com.bank.model;
 
-import com.bank.model.enums.AccountType;
+import com.bank.model.enums.Role;
+import com.bank.model.enums.TransactionType;
 import com.bank.utils.Constants;
 import jakarta.persistence.*;
 import lombok.*;
@@ -34,8 +35,13 @@ public class Category extends AbstractEntity {
 
 	@NotNull
 	@Enumerated(EnumType.STRING)
-	@Column(name = "account_type") // Admin ili User
-	private AccountType type;
+	@Column(name = "role") // Admin ili User created this category
+	private Role creator;
+
+	@NotNull
+	@Enumerated(EnumType.STRING)
+	@Column(name = "transaction_type")
+	private TransactionType transactionType;
 
 	@NotNull
 	@Column(name = "predefined")

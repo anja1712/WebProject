@@ -63,7 +63,10 @@ management:
     security:
         enabled: false
 logging:
-    config: classpath:log4j.properties
+    #config: classpath:log4j.properties
+    level:
+        com.bank: INFO
+        org.springframework: INFO
 endpoints:
     shutdown:
         sensitive: false

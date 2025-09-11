@@ -10,27 +10,28 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
+@RequestMapping("/wallets")
 @RequiredArgsConstructor
 public class WalletController {
     private final WalletService walletService;
 
-    @PostMapping("wallet/create")
+    @PostMapping("/create")
     public Wallet addWallet(@RequestBody WalletRequest walletRequest) { return walletService.addWallet(walletRequest); }
 
-    @PutMapping("wallet/{id}/update")
+    @PutMapping("/{id}/update")
     public Wallet addWallet(@PathVariable("id") Long id, @RequestBody WalletRequest walletRequest) {
         return walletService.updateWallet(id, walletRequest); }
 
-    @GetMapping("wallet/{id}")
+    @GetMapping("/{id}")
     public Wallet getWallet(@PathVariable("id") Long id) { return walletService.getWallet(id); }
 
-    @PutMapping("wallet/{id}/archive")
+    @PutMapping("/{id}/archive")
     public void archiveWallet(@PathVariable("id") Long id) { walletService.archiveWallet(id); }
 
-    @DeleteMapping("wallet/{id}")
+    @DeleteMapping("/{id}")
     public void deleteWallet(@PathVariable("id") Long id) { walletService.deleteWallet(id); }
 
-    @GetMapping("wallet/{id}/transactions")
+    @GetMapping("/{id}/transactions")
     public List<Transaction> getWalletTransactions(@PathVariable("id") Long id) {
         return walletService.getWalletTransactions(id);
     }

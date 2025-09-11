@@ -9,5 +9,5 @@ import javax.validation.constraints.NotNull;
 @Repository
 public interface CategoryRepository extends CrudRepository<Category, Long> {
 
-    Category getCategoryById(@NotNull long id);
+    Category getCategoryByName(@NotNull String name);
 }
