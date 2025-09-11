@@ -71,4 +71,7 @@ public class Customer extends AbstractEntity {
 	@NotNull
 	@Column(name = "password") // Hesirana 
 	private String password;
+
+	@Column(name = "admin_note") // Hesirana
+	private String adminNote;
 }

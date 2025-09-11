@@ -42,12 +42,11 @@ public class Wallet extends AbstractEntity {
 	@Column(name = "current_value")
 	private BigDecimal currentValue;
 	
-	@OneToOne(fetch = FetchType.LAZY, optional = false)
+	@OneToOne(fetch = FetchType.EAGER, optional = false)
 	@JoinColumn(name = "currency_id", nullable = false, updatable = true)
 	private Currency currency;
 
-
-	@OneToOne(fetch = FetchType.LAZY, optional = false)
+	@OneToOne(fetch = FetchType.EAGER, optional = false)
 	@JoinColumn(name = "customer_id", nullable = false, updatable = true)
 	private Customer customer;
 
