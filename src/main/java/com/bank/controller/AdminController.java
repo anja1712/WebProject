@@ -4,6 +4,8 @@ import com.bank.model.Category;
 import com.bank.model.Currency;
 import com.bank.model.enums.CustomerStatus;
 import com.bank.service.AdminService;
+
+import dto.Dashboard;
 import lombok.AllArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -43,5 +45,10 @@ public class AdminController {
     @PostMapping("/currencies")
     public Currency addCurrency(@RequestBody Currency currency) {
         return adminService.addCurrency(currency);
+    }
+    
+    @GetMapping("/dashboard")
+    public Dashboard getDashboard() {
+        return adminService.getDashboard();
     }
 }
