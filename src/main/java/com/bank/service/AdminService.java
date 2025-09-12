@@ -3,12 +3,24 @@ package com.bank.service;
 import com.bank.model.Category;
 import com.bank.model.Currency;
 import com.bank.model.Customer;
+import com.bank.model.Transaction;
 import com.bank.model.enums.CustomerStatus;
 import com.bank.model.enums.Role;
 import com.bank.repository.CategoryRepository;
 import com.bank.repository.CurrencyRepository;
 import com.bank.repository.CustomerRepository;
+import com.bank.repository.TransactionRepository;
+
+import dto.Dashboard;
 import lombok.RequiredArgsConstructor;
+
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.sql.Date;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.List;
+
 import org.springframework.stereotype.Service;
 
 @Service
@@ -17,6 +29,8 @@ public class AdminService {
     private final CustomerRepository customerRepository;
     private final CategoryRepository categoryRepository;
     private final CurrencyRepository currencyRepository;
+    private final TransactionRepository transactionRepository;
+    
 
     //block / unblock user
     public String changeCustomerStatus(Long id, CustomerStatus targetStatus) {
@@ -93,5 +107,35 @@ public class AdminService {
 
         currencyRepository.save(currency);
         return currency;
+    }
+    
+    public Dashboard getDashboard() {
+        BigInteger allUsers = BigInteger.valueOf(customerRepository.count());
+        BigInteger activeUsers = BigInteger.valueOf(customerRepository.countByBlockedFalse());
+
+        BigDecimal totalBalance = transactionRepository.sumAllBalances();
+        BigDecimal activeUserBalance = transactionRepository.sumBalancesForActiveUsers();
+
+        Date oneMonthAgo = Date.from(
+                LocalDate.now().minusMonths(1).atStartOfDay(ZoneId.systemDefault()).toInstant()
+        );
+        Date twoMinutesAgo = Date.from(
+                Instant.now().minus(2, ChronoUnit.MINUTES)
+        );
+
+        List<Transaction> topTenMonthlyTransactions =
+                transactionRepository.findTop10ByTransactionDateAfterOrderByAmountDesc(oneMonthAgo);
+
+        List<Transaction> topTenTwoMinutesTransactions =
+                transactionRepository.findTop10ByTransactionDateAfterOrderByAmountDesc(twoMinutesAgo);
+
+        return Dashboard.builder()
+                .allUsers(allUsers)
+                .activeUsers(activeUsers)
+                .activeUserBalance(activeUserBalance)
+                .totalBalance(totalBalance)
+                .topTenMonthlyTransactions(topTenMonthlyTransactions)
+                .topTenTwoMinutesTransactions(topTenTwoMinutesTransactions)
+                .build();
     }
 }
