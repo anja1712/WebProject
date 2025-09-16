@@ -3,15 +3,15 @@ package com.bank.model.request;
 import lombok.Builder;
 import lombok.Data;
 
-import java.util.Date;
+import java.time.Instant;
 
 @Data
 @Builder
-public class CustomerRequest {
+public class UserRequest {
     private String firstName;
     private String lastName;
     private String userName;
-    private Date birthDate;
+    private Instant birthDate;
     private String email;
     private String password;
 }

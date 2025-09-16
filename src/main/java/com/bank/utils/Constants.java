@@ -14,7 +14,8 @@ public class Constants {
 
 	public static String BASE_CONFIRMATION_DOMAIN = "http://213.199.32.117";
 
-	public static final String ADMIN_EMAIL = "adriana.anja@gmail.com";
+	public static final String ADMIN_EMAIL = "admin@admin.com";
+	public static final String ADMIN_PASS = "adminpass";
 	public static final String USER_ROLE = "USER";
 	public static final String ADMIN_ROLE = "ADMIN";
 

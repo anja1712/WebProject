@@ -9,7 +9,7 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 import javax.validation.constraints.NotNull;
-import java.util.Date;
+import java.time.Instant;
 
 /**
  * @author Nina Antic & Adriana Erakovic
@@ -20,16 +20,16 @@ import java.util.Date;
 @Data
 @EqualsAndHashCode(callSuper = false)
 @Access(AccessType.FIELD)
-@Table(name = "customer", schema = Constants.DB_SCHEMA)
-public class Customer extends AbstractEntity {
+@Table(name = "user", schema = Constants.DB_SCHEMA)
+public class User extends AbstractEntity {
 
 	@Id
 	@NotNull
 	@Column(name = "id", nullable = false, updatable = false)
-	@GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "seq_customer")
+	@GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "seq_user")
 	@SequenceGenerator(
-			name = "seq_customer",
-			sequenceName = Constants.DB_SCHEMA + ".seq_customer",
+			name = "seq_user",
+			sequenceName = Constants.DB_SCHEMA + ".seq_user",
 			allocationSize = 1
 	)
 	private Long id;
@@ -39,9 +39,8 @@ public class Customer extends AbstractEntity {
 	private String firstName;
 	
 	@NotNull
-	@Temporal(TemporalType.TIMESTAMP)
-	@Column(name = "birth_date", nullable = false, updatable = false)
-	protected Date birthDate;
+	@Column(name = "birth_date", columnDefinition = "TIMESTAMPTZ")
+	protected Instant birthDate;
 
 	@NotNull
 	@Column(name = "last_name")

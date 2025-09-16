@@ -46,12 +46,7 @@ public class Category extends AbstractEntity {
 	@NotNull
 	@Column(name = "predefined")
 	private Boolean predefined;
-	
-	// polje moze biti null
-	// entitet moze ali ne mora imati povezanog korisnika
-	// Veza se ucitava samo kada je potrebno .LAZY, a kolona "customer_id" se moze menjati
-	@OneToOne(fetch = FetchType.LAZY, optional = true)
-	@JoinColumn(name = "customer_id", updatable = true)
-	private Customer customer;
 
+	@Column(name = "user_id")
+	private Long userId;
 }

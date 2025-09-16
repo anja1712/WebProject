@@ -1,28 +1,27 @@
 package com.bank;
 
-import java.util.Date;
-
+import com.bank.model.User;
+import com.bank.model.enums.Role;
 import org.springframework.test.context.ActiveProfiles;
 
-import com.bank.model.Customer;
-import com.bank.model.enums.Role;
+import java.time.Instant;
 
 @ActiveProfiles("test")
 public abstract class AbstractTest {
 
-	protected Customer createCustomer() {
+	protected User createUser() {
 
-		Customer customer = new Customer();
-		customer.setEmail("test@teest.com");
-		customer.setPassword("pass5678");
-		customer.setFirstName("Pera");
-		customer.setLastName("Peric");
-		customer.setBirthDate(new Date());
-		customer.setBlocked(true);
-		customer.setUserName("dxfcgvhbjn");
-		customer.setProfilePicture("aaaa");
-		customer.setRole(Role.ADMIN);
+		User user = new User();
+		user.setEmail("test@teest.com");
+		user.setPassword("pass5678");
+		user.setFirstName("Pera");
+		user.setLastName("Peric");
+		user.setBirthDate(Instant.now());
+		user.setBlocked(true);
+		user.setUserName("dxfcgvhbjn");
+		user.setProfilePicture("aaaa");
+		user.setRole(Role.ADMIN);
 
-		return customer;
+		return user;
 	}
 }

@@ -1,5 +1,5 @@
 package com.bank.model.enums;
 
-public enum CustomerStatus {
+public enum UserStatus {
     ACTIVE, BLOCKED
 }
