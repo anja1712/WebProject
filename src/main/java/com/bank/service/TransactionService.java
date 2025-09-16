@@ -2,6 +2,7 @@ package com.bank.service;
 
 import com.bank.model.Currency;
 import com.bank.model.*;
+import com.bank.model.dto.TransactionDTO;
 import com.bank.model.dto.TransactionOverview;
 import com.bank.model.enums.CurrencyType;
 import com.bank.model.enums.Frequency;
@@ -10,14 +11,21 @@ import com.bank.model.enums.TransactionType;
 import com.bank.model.request.TransactionRequest;
 import com.bank.model.request.TransactionStatisticsRequest;
 import com.bank.repository.*;
-import dto.TransactionDTO;
+import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.temporal.ChronoField;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static com.bank.model.enums.Role.USER;
 
@@ -26,65 +34,94 @@ import static com.bank.model.enums.Role.USER;
 public class TransactionService {
 	private final TransactionRepository transactionRepository;
 	private final WalletRepository walletRepository;
-	private final CustomerRepository customerRepository;
+	private final UserRepository userRepository;
 	private final CategoryRepository categoryRepository;
 	private final CurrencyRepository currencyRepository;
 
-	public Transaction makeTransaction(TransactionRequest request) {
+	public Transaction makeTransaction(TransactionRequest request, HttpSession session) {
+		Long userId = (Long) session.getAttribute("USER_ID");
 		Transaction transactionToSave = new Transaction();
 
-		Customer customer = customerRepository.getCustomerById(request.getCustomerId());
-		if(customer == null) {
-			throw new RuntimeException("Customer with id " + request.getCustomerId() + " not found");
+		User user = userRepository.getUserById(userId);
+		if(user == null) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User with id " + userId+ " not found");
 		}
 
 		Wallet wallet = walletRepository.getWalletById(request.getWalletId());
 		if (wallet == null) {
-			throw new RuntimeException("Wallet with id " + request.getWalletId() + " not found");
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Wallet with id " + request.getWalletId() + " not found");
 		}
 
+		if (!Objects.equals(wallet.getUser().getId(), userId)) {
+			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User doesnt have a wallet with id " + request.getWalletId());
+		}
+
+		// if it's transfer, check if toWallet and fromWAllet exist and belong to user, set in transaction
 		if (request.getSourceWalletId() != null && request.getDestinationWalletId() != null) {
 			Wallet sourceWallet = walletRepository.getWalletById(request.getSourceWalletId());
 			if (sourceWallet == null) {
-				throw new RuntimeException("Source wallet with id " + request.getWalletId() + " not found");
+				throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Source wallet with id " + request.getWalletId() + " not found");
 			}
+			if (!Objects.equals(sourceWallet.getUser().getId(), userId)) {
+				throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User doesnt have a wallet with id " + request.getSourceWalletId());
+			}
+
 			Wallet destinationWallet = walletRepository.getWalletById(request.getDestinationWalletId());
 			if (destinationWallet == null) {
-				throw new RuntimeException("Destination wallet with id " + request.getWalletId() + " not found");
+				throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Destination wallet with id " + request.getWalletId() + " not found");
 			}
-			transactionToSave.setSourceWallet(walletRepository.getWalletById(request.getSourceWalletId()));
-			transactionToSave.setDestinationWallet(walletRepository.getWalletById(request.getDestinationWalletId()));
+			if (!Objects.equals(destinationWallet.getUser().getId(), userId)) {
+				throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User doesnt have a wallet with id " + request.getDestinationWalletId());
+			}
+
+			transactionToSave.setSourceWallet(sourceWallet);
+			transactionToSave.setDestinationWallet(destinationWallet);
 		}
 
 		Currency currency = currencyRepository.getCurrencyByName(CurrencyType.valueOf(request.getCurrency()));
 		if (currency == null) {
-			throw new RuntimeException("Transaction with currency " + request.getCurrency() + " is not allowed");
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Transaction with currency " + request.getCurrency() + " is not allowed");
 		}
 
 		if (wallet.getCurrency().getId() != currency.getId()) {
-			throw new RuntimeException("Wallet does not support " + currency.getName() + "transactions");
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Wallet does not support " + currency.getName() + "transactions");
 		}
-				
-		Category category = categoryRepository.getCategoryByName(request.getCategory());
-		if (category == null) {
-			Category newCategory = Category.builder()
+
+		Category resultCategory = categoryRepository.findByNameAndTransactionTypeAndPredefinedTrue(request.getCategory(), request.getType());
+
+		if (resultCategory == null) {
+            resultCategory = categoryRepository.findByUserIdAndNameAndTransactionType(userId, request.getName(), request.getType());
+
+			if (resultCategory == null) {
+				resultCategory = Category.builder()
 					.name(request.getName())
 					.transactionType(request.getType())
 					.creator(USER)
 					.predefined(false)
-					.customer(customer)
+					.userId(userId)
 					.build();
 
-			categoryRepository.save(newCategory);
+				categoryRepository.save(resultCategory);
+			}
 		}
+
+		BigDecimal resultAmount = null;
+		if (wallet.getCurrentValue().compareTo(request.getAmount()) >= 0) {
+			resultAmount = wallet.getCurrentValue().subtract(request.getAmount());
+		} else if (wallet.getCurrentValue().compareTo(request.getAmount()) <= 0) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Wallet doesn't have enough balance");
+		}
+
+		wallet.setCurrentValue(resultAmount);
+		walletRepository.save(wallet);
 
 		transactionToSave.setName(request.getName());
 		transactionToSave.setCurrency(request.getCurrency());
 		transactionToSave.setAmount(request.getAmount());
 		transactionToSave.setTransactionType(request.getType());
 		transactionToSave.setTransactionDate(request.getTransactionDate());
-		transactionToSave.setCategory(request.getCategory());
-		transactionToSave.setCustomer(customer);
+		transactionToSave.setCategory(resultCategory.getName());
+		transactionToSave.setUser(user);
 	    transactionToSave.setWallet(wallet);
 
 		if (request.getRecurring() && request.getFrequency() != null) {
@@ -99,20 +136,30 @@ public class TransactionService {
 		return transactionToSave;
 	}
 	
-	public String transferFunds(Long fromWalletId, Long toWalletId, BigDecimal amount) {
+	public String transferFunds(Long fromWalletId, Long toWalletId, BigDecimal amount, HttpSession session) {
+		Object userId = session.getAttribute("USER_ID");
+
 		Wallet fromWallet = walletRepository.getWalletById(fromWalletId);
 		if(fromWallet == null) {
-			throw new RuntimeException("Source wallet not found");
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Source wallet not found");
+		}
+
+		if (!userId.equals(fromWallet.getUser().getId())) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Source wallet doesn't belong to logged in user");
 		}
 
 		Wallet toWallet = walletRepository.getWalletById(toWalletId);
 		if (toWallet == null) {
-			throw new RuntimeException("Destination wallet not found");
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Destination wallet not found");
+		}
+
+		if (!userId.equals(toWallet.getUser().getId())) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Destination wallet doesn't belong to logged in user");
 		}
 		
 		BigDecimal value = fromWallet.getCurrentValue();
 		if(value.compareTo(amount) < 0) {
-			throw new RuntimeException("Insufficient funds");
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Insufficient funds");
 		}
 		
 		Currency fromCurrency = fromWallet.getCurrency();
@@ -135,64 +182,55 @@ public class TransactionService {
 
 		return convertedAmount + " transferred from " + fromWallet.getId() + " to " + toWallet.getId();
 	}
-	
-	public List<TransactionDTO> getTransaction(Long customerId, PeriodType periodType) {
-	    Optional<Customer> optionalCustomer = customerRepository.findById(customerId);
 
-	    if (optionalCustomer.isEmpty()) {
-	        return new ArrayList<>();
-	    }
+	public List<TransactionDTO> getTransactions(Long userId, PeriodType periodType) {
+		return userRepository.findById(userId)
+				.map(transactionRepository::findByUser)
+				.orElseGet(Collections::emptyList)
+				.stream()
+				.collect(Collectors.groupingBy(
+						tx -> getPeriodStart(tx.getTransactionDate(), periodType),
+						TreeMap::new,
+						Collectors.toList()
+				))
+				.entrySet()
+				.stream()
+				.map(entry -> {
+					BigDecimal total = entry.getValue().stream()
+							.map(Transaction::getAmount)
+							.reduce(BigDecimal.ZERO, BigDecimal::add);
 
-	    Customer customer = optionalCustomer.get();
-	    List<Transaction> transactions = transactionRepository.findByCustomer(customer);
-
-	    Map<Date, List<Transaction>> groupedTransactions = new TreeMap<>();
-
-	    for (Transaction transaction : transactions) {
-	        Date periodStart = getPeriodStart(transaction.getTransactionDate(), periodType);
-	        groupedTransactions
-	            .computeIfAbsent(periodStart, k -> new ArrayList<>())
-	            .add(transaction);
-	    }
-
-	    List<TransactionDTO> summaryList = new ArrayList<>();
-
-	    for (Map.Entry<Date, List<Transaction>> entry : groupedTransactions.entrySet()) {
-	        BigDecimal total = entry.getValue().stream()
-	            .map(Transaction::getAmount)
-	            .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-	        summaryList.add(new TransactionDTO(
-	            entry.getKey(),
-	            total,
-	            (long) entry.getValue().size()
-	        ));
-	    }
-
-	    return summaryList;
+					return new TransactionDTO(
+							entry.getKey(),
+							total,
+							(long) entry.getValue().size()
+					);
+				})
+				.toList();
 	}
 
+
 	public TransactionOverview getStatisticsForTimePeriod(TransactionStatisticsRequest request) {
-		Long customerId = request.getCustomerId();
+		Long userId = request.getUserId();
 		Instant start;
 		Instant end;
 
-		Customer customer = customerRepository.getCustomerById(customerId);
-		if (customer == null) {
-			throw new RuntimeException("Customer with id " + customerId + " not found");
+		User user = userRepository.getUserById(userId);
+		if (user == null) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Customer with id " + userId + " not found");
 		}
 
 		start = request.getStartDate() != null ?
-				request.getStartDate().toInstant().minusMillis(1) :
-				customer.getCreationDate().toInstant();
+				request.getStartDate() :
+				user.getCreated();
 
 		end = request.getEndDate() != null ?
-				request.getEndDate().toInstant().plusMillis(1) :
+				request.getEndDate() :
 				Instant.now();
 
-		List<Transaction> transactions = transactionRepository.findByCustomerIdAndTransactionDateBetween(customerId, start, end);
+		List<Transaction> transactions = transactionRepository.findByUserIdAndTransactionDateBetween(userId, start, end);
 		if (transactions.isEmpty()) {
-			throw new RuntimeException("No transactions found");
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No transactions found");
 		}
 
 		BigDecimal incomeSum = BigDecimal.valueOf(0.0);
@@ -237,74 +275,33 @@ public class TransactionService {
 				.topTenExpenses(topTenExpenses)
 				.build();
 	}
-	
-	private Date getPeriodStart(Date date, PeriodType periodType) {
-	    Calendar cal = Calendar.getInstance();
-	    cal.setTime(date);
 
-	    switch (periodType) {
-	        case DAILY:
-	            cal.set(Calendar.HOUR_OF_DAY, 0);
-	            cal.set(Calendar.MINUTE, 0);
-	            cal.set(Calendar.SECOND, 0);
-	            cal.set(Calendar.MILLISECOND, 0);
-	            break;
-	        case WEEKLY:
-	            cal.set(Calendar.DAY_OF_WEEK, cal.getFirstDayOfWeek());
-	            cal.set(Calendar.HOUR_OF_DAY, 0);
-	            cal.set(Calendar.MINUTE, 0);
-	            cal.set(Calendar.SECOND, 0);
-	            cal.set(Calendar.MILLISECOND, 0);
-	            break;
-	        case MONTHLY:
-	            cal.set(Calendar.DAY_OF_MONTH, 1);
-	            cal.set(Calendar.HOUR_OF_DAY, 0);
-	            cal.set(Calendar.MINUTE, 0);
-	            cal.set(Calendar.SECOND, 0);
-	            cal.set(Calendar.MILLISECOND, 0);
-	            break;
-	        case QUARTERLY:
-	            int currentMonth = cal.get(Calendar.MONTH);
-	            int startMonth = (currentMonth / 3) * 3; // kvartali: 0-2, 3-5, 6-8, 9-11
-	            cal.set(Calendar.MONTH, startMonth);
-	            cal.set(Calendar.DAY_OF_MONTH, 1);
-	            cal.set(Calendar.HOUR_OF_DAY, 0);
-	            cal.set(Calendar.MINUTE, 0);
-	            cal.set(Calendar.SECOND, 0);
-	            cal.set(Calendar.MILLISECOND, 0);
-	            break;
-	    }
+	private Instant getPeriodStart(Instant instant, PeriodType type) {
+		ZoneId zone = ZoneId.systemDefault(); // or user-specific zone if needed
+		LocalDateTime ldt = LocalDateTime.ofInstant(instant, zone);
 
-	    return cal.getTime();
+		return switch (type) {
+			case DAILY -> ldt.toLocalDate().atStartOfDay(zone).toInstant();
+			case WEEKLY -> ldt
+					.with(ChronoField.DAY_OF_WEEK, 1) // Monday as start, adjust if needed
+					.toLocalDate()
+					.atStartOfDay(zone)
+					.toInstant();
+			case MONTHLY -> ldt
+					.withDayOfMonth(1)
+					.toLocalDate()
+					.atStartOfDay(zone)
+					.toInstant();
+			case QUARTERLY -> {
+				int startMonth = ((ldt.getMonthValue() - 1) / 3) * 3 + 1;
+				LocalDate firstOfQuarter = LocalDate.of(ldt.getYear(), startMonth, 1);
+				yield firstOfQuarter.atStartOfDay(zone).toInstant();
+			}
+			case YEARLY -> LocalDate.of(ldt.getYear(), 1, 1)
+					.atStartOfDay(zone)
+					.toInstant();
+		};
 	}
-
-	public void processRecurringTransactions() {
-	    List<Transaction> recurringTransactions = transactionRepository.findByRecurringTrue();
-
-	    Date now = new Date();
-
-	    for (Transaction t : recurringTransactions) {
-	    	Date nextDate = calculateNextDate(t.getTransactionDate(), t.getFrequency());
-	    	if (!nextDate.after(now)) {
-	    		Transaction newTransaction = new Transaction();
-	    		newTransaction.setName(t.getName());
-	    		newTransaction.setAmount(t.getAmount());
-	    		newTransaction.setTransactionType(t.getTransactionType());
-	    		newTransaction.setCategory(t.getCategory());
-	    		newTransaction.setCustomer(t.getCustomer());
-	    		newTransaction.setWallet(t.getWallet());
-	    		newTransaction.setRecurring(true);
-	    		newTransaction.setFrequency(t.getFrequency());
-	    		newTransaction.setTransactionDate(nextDate);
-
-	    		transactionRepository.save(newTransaction);
-	            
-	    		t.setTransactionDate(nextDate);
-	    		transactionRepository.save(t);
-	        }
-	    }
-	}
-	
 	private Date calculateNextDate(Date date, Frequency frequency) {
 	    Calendar cal = Calendar.getInstance();
 	    cal.setTime(date);
@@ -322,10 +319,15 @@ public class TransactionService {
 	}
 
 	
-	public void disableRecurring(Long transactionId) {
+	public void disableRecurring(Long transactionId, HttpSession session) {
 	    Optional<Transaction> optionalTransaction = transactionRepository.findById(transactionId);
 	    if(optionalTransaction.isPresent()) {
 	        Transaction t = optionalTransaction.get();
+
+			if (!t.getUser().getId().equals(session.getAttribute("USER_ID"))) {
+				throw new RuntimeException("Access denied");
+			}
+
 	        t.setRecurring(false);
 	        t.setFrequency(null);
 	        transactionRepository.save(t);
@@ -333,5 +335,35 @@ public class TransactionService {
 	        throw new RuntimeException("Transaction not found");
 	    }
 	}
-	
+
+
+
+
+
+//	public void processRecurringTransactions() {
+//		List<Transaction> recurringTransactions = transactionRepository.findByRecurringTrue();
+//
+//		Date now = new Date();
+//
+//		for (Transaction t : recurringTransactions) {
+//			Date nextDate = calculateNextDate(t.getTransactionDate(), t.getFrequency());
+//			if (!nextDate.after(now)) {
+//				Transaction newTransaction = new Transaction();
+//				newTransaction.setName(t.getName());
+//				newTransaction.setAmount(t.getAmount());
+//				newTransaction.setTransactionType(t.getTransactionType());
+//				newTransaction.setCategory(t.getCategory());
+//				newTransaction.setUser(t.getUser());
+//				newTransaction.setWallet(t.getWallet());
+//				newTransaction.setRecurring(true);
+//				newTransaction.setFrequency(t.getFrequency());
+//				newTransaction.setTransactionDate(nextDate);
+//
+//				transactionRepository.save(newTransaction);
+//
+//				t.setTransactionDate(nextDate);
+//				transactionRepository.save(t);
+//			}
+//		}
+//	}
 }

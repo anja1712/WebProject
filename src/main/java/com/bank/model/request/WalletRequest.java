@@ -15,6 +15,6 @@ public class WalletRequest {
     private CurrencyType currencyType;
     //what address for
     private String address;
-    private Long customerId;
+    private Long userId;
     private Boolean savings;
 }

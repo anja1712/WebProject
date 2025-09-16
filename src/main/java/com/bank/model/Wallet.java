@@ -47,8 +47,8 @@ public class Wallet extends AbstractEntity {
 	private Currency currency;
 
 	@OneToOne(fetch = FetchType.EAGER, optional = false)
-	@JoinColumn(name = "customer_id", nullable = false, updatable = true)
-	private Customer customer;
+	@JoinColumn(name = "user_id", nullable = false, updatable = true)
+	private User user;
 
 	@NotNull
 	@Column(name = "savings")

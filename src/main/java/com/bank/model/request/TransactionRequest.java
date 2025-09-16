@@ -6,7 +6,7 @@ import lombok.Builder;
 import lombok.Data;
 
 import java.math.BigDecimal;
-import java.sql.Date;
+import java.time.Instant;
 
 @Data
 @Builder
@@ -16,11 +16,10 @@ public class TransactionRequest {
     private BigDecimal amount;
     private String category;
     private TransactionType type;
-    private Date transactionDate;
+    private Instant transactionDate;
     private Long walletId;
     private Long sourceWalletId;
     private Long destinationWalletId;
-    private Long customerId;
     private Boolean recurring;
     private Frequency frequency;
 }
