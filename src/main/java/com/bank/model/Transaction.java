@@ -11,7 +11,7 @@ import org.hibernate.annotations.Parameter;
 
 import javax.validation.constraints.NotNull;
 import java.math.BigDecimal;
-import java.util.Date;
+import java.time.Instant;
 
 @Entity
 @AllArgsConstructor
@@ -53,13 +53,8 @@ public class Transaction extends AbstractEntity {
 	@Column(name = "category")
 	private String category;
 
-	@Temporal(TemporalType.TIMESTAMP)
-	@Column(name = "transaction_date", nullable = true, updatable = true)
-	protected Date transactionDate;
-
-	@Temporal(TemporalType.TIMESTAMP)
-	@Column(name = "modifitcation_date", nullable = true, updatable = true)
-	protected Date modificationDate;
+	@Column(name = "transaction_date", columnDefinition = "TIMESTAMPTZ")
+	protected Instant transactionDate;
 
 	@NotNull
 	@Column(name = "recurring")
@@ -75,8 +70,8 @@ public class Transaction extends AbstractEntity {
 
 	@JsonIgnore
 	@OneToOne(fetch = FetchType.EAGER, optional = true)
-	@JoinColumn(name = "customer_id", updatable = true)
-	private Customer customer;
+	@JoinColumn(name = "user_id", updatable = true)
+	private User user;
 
 	@JsonIgnore
 	//dodatna polja za transakcije izmedju 2 novcanika 

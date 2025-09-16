@@ -10,7 +10,7 @@ GRANT ALL ON SCHEMA bank TO bank007;
 -- DROP TABLE IF EXISTS bank.wallet CASCADE;
 -- DROP TABLE IF EXISTS bank.currency CASCADE;
 -- DROP TABLE IF EXISTS bank.configuration CASCADE;
--- DROP TABLE IF EXISTS bank.customer CASCADE;
+-- DROP TABLE IF EXISTS bank.user CASCADE;
 --
 -- Drop sequences
 -- DROP SEQUENCE IF EXISTS bank.seq_transaction CASCADE;
@@ -18,13 +18,13 @@ GRANT ALL ON SCHEMA bank TO bank007;
 -- DROP SEQUENCE IF EXISTS bank.seq_wallet CASCADE;
 -- DROP SEQUENCE IF EXISTS bank.seq_currency CASCADE;
 -- DROP SEQUENCE IF EXISTS bank.seq_configuration CASCADE;
--- DROP SEQUENCE IF EXISTS bank.seq_customer CASCADE;
+-- DROP SEQUENCE IF EXISTS bank.seq_user CASCADE;
 
 -- Create sequences first (so defaults can use them)
-CREATE SEQUENCE IF NOT EXISTS bank.seq_customer
+CREATE SEQUENCE IF NOT EXISTS bank.seq_user
     START 1000
     INCREMENT 1;
-ALTER SEQUENCE bank.seq_customer OWNER TO bank007;
+ALTER SEQUENCE bank.seq_user OWNER TO bank007;
 
 CREATE SEQUENCE IF NOT EXISTS bank.seq_configuration START 1000;
 ALTER SEQUENCE bank.seq_configuration OWNER TO bank007;
@@ -41,39 +41,38 @@ ALTER SEQUENCE bank.seq_category OWNER TO bank007;
 CREATE SEQUENCE IF NOT EXISTS bank.seq_transaction START 1000;
 ALTER SEQUENCE bank.seq_transaction OWNER TO bank007;
 
--- Create customer table
-CREATE TABLE IF NOT EXISTS bank.customer (
-   id bigint NOT NULL DEFAULT nextval('bank.seq_customer'::regclass),
+-- Create user table
+CREATE TABLE IF NOT EXISTS bank.user (
+   id bigint NOT NULL DEFAULT nextval('bank.seq_user'::regclass),
    version integer NOT NULL DEFAULT 0,
-   creation_date timestamp NOT NULL,
-   modification_date timestamp,
-   currency_id bigint,
-   birth_date timestamp NOT NULL,
+   birth_date timestamptz NOT NULL,
    blocked boolean NOT NULL DEFAULT false,
    email varchar(50) NOT NULL UNIQUE,
    role varchar(10) NOT NULL,
    user_name varchar(50) NOT NULL UNIQUE,
-   password varchar(50) NOT NULL,
+   password varchar(250) NOT NULL,
    profile_picture varchar(100) NOT NULL,
    first_name varchar(50) NOT NULL,
    last_name varchar(50) NOT NULL,
+   created timestamptz NOT NULL,
+   modified timestamptz NOT NULL,
    admin_note varchar(300),
-   CONSTRAINT customer_pkey PRIMARY KEY (id)
+   CONSTRAINT user_pkey PRIMARY KEY (id)
 );
-ALTER TABLE bank.customer OWNER TO bank007;
-GRANT ALL ON TABLE bank.customer TO bank007;
+ALTER TABLE bank.user OWNER TO bank007;
+GRANT ALL ON TABLE bank.user TO bank007;
 
 -- Create configuration table
 CREATE TABLE IF NOT EXISTS bank.configuration (
     id bigint NOT NULL DEFAULT nextval('bank.seq_configuration'::regclass),
     version integer NOT NULL DEFAULT 0,
-    creation_date timestamp NOT NULL,
-    modification_date timestamp,
+    created timestamptz NOT NULL,
+    modified timestamptz,
     name varchar(100) NOT NULL,
     config_value text NOT NULL,
-    customer_id bigint,
+    user_id bigint,
     CONSTRAINT configuration_pkey PRIMARY KEY (id),
-    CONSTRAINT configuration_customer_fkey FOREIGN KEY (customer_id) REFERENCES bank.customer (id) ON UPDATE NO ACTION ON DELETE NO ACTION
+    CONSTRAINT configuration_user_fkey FOREIGN KEY (user_id) REFERENCES bank.user (id) ON UPDATE NO ACTION ON DELETE NO ACTION
 );
 ALTER TABLE bank.configuration OWNER TO bank007;
 GRANT ALL ON TABLE bank.configuration TO bank007;
@@ -82,8 +81,8 @@ GRANT ALL ON TABLE bank.configuration TO bank007;
 CREATE TABLE IF NOT EXISTS bank.currency (
    id bigint NOT NULL DEFAULT nextval('bank.seq_currency'::regclass),
    version integer NOT NULL DEFAULT 0,
-   creation_date timestamp NOT NULL,
-   modification_date timestamp,
+   created timestamptz NOT NULL,
+   modified timestamptz,
    name varchar(100) NOT NULL,
    currency_value numeric(10,2) NOT NULL,
    CONSTRAINT currency_pkey PRIMARY KEY (id)
@@ -97,7 +96,7 @@ ALTER TABLE bank.currency
     ADD CONSTRAINT uq_currency_name UNIQUE(name);
 
 -- Seed currency
-INSERT INTO bank.currency (name, currency_value, version, creation_date)
+INSERT INTO bank.currency (name, currency_value, version, created)
 VALUES
     ('USD', 1.00, 0, NOW()),
     ('EUR', 0.90, 0, NOW()),
@@ -110,17 +109,17 @@ ON CONFLICT (name) DO NOTHING;
 CREATE TABLE IF NOT EXISTS bank.wallet (
      id bigint NOT NULL DEFAULT nextval('bank.seq_wallet'::regclass),
      version integer NOT NULL DEFAULT 0,
-     creation_date timestamp NOT NULL,
-     modification_date timestamp,
+     created timestamptz NOT NULL,
+     modified timestamptz,
      name varchar(100) NOT NULL,
      init_value numeric(10,2) NOT NULL,
      current_value numeric(10,2) NOT NULL,
-     customer_id bigint,
+     user_id bigint,
      currency_id bigint,
      savings boolean NOT NULL,
      archive boolean NOT NULL,
      CONSTRAINT wallet_pkey PRIMARY KEY (id),
-     CONSTRAINT wallet_customer_fkey FOREIGN KEY (customer_id) REFERENCES bank.customer(id) ON UPDATE NO ACTION ON DELETE NO ACTION,
+     CONSTRAINT wallet_user_fkey FOREIGN KEY (user_id) REFERENCES bank.user(id) ON UPDATE NO ACTION ON DELETE NO ACTION,
      CONSTRAINT wallet_currency_fkey FOREIGN KEY (currency_id) REFERENCES bank.currency(id) ON UPDATE NO ACTION ON DELETE NO ACTION
 );
 ALTER TABLE bank.wallet OWNER TO bank007;
@@ -131,14 +130,13 @@ CREATE TABLE IF NOT EXISTS bank.category (
    id bigint NOT NULL DEFAULT nextval('bank.seq_category'::regclass),
    version integer NOT NULL DEFAULT 0,
    transaction_type varchar (10) NOT NULL,
-   creation_date timestamp NOT NULL,
-   modification_date timestamp,
-   customer_id bigint,
+   created timestamptz NOT NULL,
+   modified timestamptz,
+   user_id bigint,
    role varchar(10) NOT NULL,
    predefined boolean NOT NULL DEFAULT false,
    name varchar(50) NOT NULL,
-   CONSTRAINT category_pkey PRIMARY KEY (id),
-   CONSTRAINT category_customer_fkey FOREIGN KEY (customer_id) REFERENCES bank.customer(id) ON UPDATE NO ACTION ON DELETE NO ACTION
+   CONSTRAINT category_pkey PRIMARY KEY (id)
 );
 ALTER TABLE bank.category OWNER TO bank007;
 GRANT ALL ON TABLE bank.category TO bank007;
@@ -149,7 +147,7 @@ ALTER TABLE bank.category
     ADD CONSTRAINT uq_category_name UNIQUE(name);
 
 -- Seed category
-INSERT INTO bank.category (role, transaction_type, predefined, name, version, creation_date)
+INSERT INTO bank.category (role, transaction_type, predefined, name, version, created)
 VALUES
     ('ADMIN', 'EXPENSE', true, 'Food', 0, NOW()),
     ('ADMIN', 'EXPENSE',true, 'Home Care', 0, NOW()),
@@ -169,10 +167,10 @@ ON CONFLICT (name) DO NOTHING;
 CREATE TABLE IF NOT EXISTS bank.transaction (
       id bigint NOT NULL DEFAULT nextval('bank.seq_transaction'::regclass),
       version integer NOT NULL DEFAULT 0,
-      creation_date timestamp NOT NULL,
-      modification_date timestamp,
-      transaction_date timestamp,
-      customer_id bigint NOT NULL,
+      created timestamptz NOT NULL,
+      modified timestamptz,
+      transaction_date timestamptz,
+      user_id bigint NOT NULL,
       category varchar(50) NOT NULL,
       wallet_id bigint NOT NULL,
       name varchar(100) NOT NULL,
@@ -184,7 +182,7 @@ CREATE TABLE IF NOT EXISTS bank.transaction (
       source_wallet_id bigint,
       destination_wallet_id bigint,
       CONSTRAINT transaction_pkey PRIMARY KEY (id),
-      CONSTRAINT transaction_customer_fkey FOREIGN KEY (customer_id) REFERENCES bank.customer(id) ON UPDATE NO ACTION ON DELETE NO ACTION,
+      CONSTRAINT transaction_user_fkey FOREIGN KEY (user_id) REFERENCES bank.user(id) ON UPDATE NO ACTION ON DELETE NO ACTION,
       CONSTRAINT transaction_wallet_fkey FOREIGN KEY (wallet_id) REFERENCES bank.wallet(id) ON UPDATE NO ACTION ON DELETE NO ACTION
 );
 ALTER TABLE bank.transaction OWNER TO bank007;
