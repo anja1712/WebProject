@@ -1,5 +1,6 @@
 package com.bank.model.request;
 
+import com.bank.model.Currency;
 import com.bank.model.enums.Frequency;
 import com.bank.model.enums.TransactionType;
 import lombok.Builder;
@@ -12,7 +13,7 @@ import java.time.Instant;
 @Builder
 public class TransactionRequest {
 	private String name;
-    private String currency;
+    private Currency currency;
     private BigDecimal amount;
     private String category;
     private TransactionType type;

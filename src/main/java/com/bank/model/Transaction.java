@@ -36,9 +36,9 @@ public class Transaction extends AbstractEntity {
 	@Column(name = "name")
 	private String name;
 
-	@NotNull
-	@Column(name = "currency")
-	private String currency;
+	@OneToOne(fetch = FetchType.EAGER, optional = false)
+	@JoinColumn(name = "currency_id", nullable = false, updatable = true)
+	private Currency currency;
 
 	@NotNull
 	@Column(name = "amount")
