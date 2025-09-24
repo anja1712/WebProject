@@ -1,7 +1,9 @@
 package com.bank.controller;
 
-import com.bank.model.Transaction;
+import com.bank.model.Goal;
 import com.bank.model.Wallet;
+import com.bank.model.dto.TransactionViewDto;
+import com.bank.model.request.GoalRequest;
 import com.bank.model.request.WalletRequest;
 import com.bank.service.WalletService;
 import jakarta.servlet.http.HttpSession;
@@ -51,8 +53,13 @@ public class WalletController {
     }
 
     @GetMapping("/{id}/transactions")
-    public List<Transaction> getWalletTransactions(@PathVariable("id") Long id) {
-        return walletService.getWalletTransactions(id);
+    public List<TransactionViewDto> getWalletTransactions(@PathVariable("id") Long id, HttpSession session) {
+        return walletService.getWalletTransactions(id, session);
+    }
+
+    @PostMapping("/goal")
+    public Goal createGoal(@RequestBody GoalRequest goalRequest, HttpSession session) {
+        return walletService.createGoal(goalRequest, session);
     }
 
     private void setAdminNote(Wallet wallet, HttpSession session) {

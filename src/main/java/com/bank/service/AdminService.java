@@ -5,21 +5,27 @@ import com.bank.model.Currency;
 import com.bank.model.Transaction;
 import com.bank.model.User;
 import com.bank.model.dto.Dashboard;
+import com.bank.model.dto.TransactionViewDto;
+import com.bank.model.enums.CurrencyType;
 import com.bank.model.enums.Role;
 import com.bank.model.enums.UserStatus;
 import com.bank.model.request.MonitoringRequest;
 import com.bank.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 @Service
@@ -35,26 +41,26 @@ public class AdminService {
     public String changeCustomerStatus(Long id, UserStatus targetStatus) {
         User user = userRepository.getUserById(id);
         if (user == null) {
-            throw new RuntimeException("User not found");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
         }
 
         switch (targetStatus) {
             case ACTIVE:
                 if (!user.getBlocked()) {
-                    throw new RuntimeException("User is already active");
+                    throw new ResponseStatusException(HttpStatus.CONFLICT, "User is already active");
                 }
                 user.setBlocked(false);
                 break;
 
             case BLOCKED:
                 if (user.getBlocked()) {
-                    throw new RuntimeException("User is already blocked");
+                    throw new ResponseStatusException(HttpStatus.CONFLICT, "User is already blocked");
                 }
                 user.setBlocked(true);
                 break;
 
             default:
-                throw new RuntimeException("Unsupported status: " + targetStatus);
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported status: " + targetStatus);
         }
 
         userRepository.save(user);
@@ -62,10 +68,28 @@ public class AdminService {
         return "User " + id + " is now " + targetStatus.name();
     }
 
+    public List<TransactionViewDto> getTransactionsForUser(Long userId) {
+        User user = userRepository.getUserById(userId);
+        if (user == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
+        }
+
+        return transactionRepository.findByUserId(userId)
+                .stream()
+                .map(t -> TransactionViewDto.builder()
+                        .name(t.getName())
+                        .type(t.getTransactionType())
+                        .amount(t.getAmount())
+                        .date(t.getTransactionDate())
+                        .currency(t.getCurrency())
+                        .build())
+                .toList();
+    }
+
     public String addAdminNote(Long customerId, String note) {
         User user = userRepository.getUserById(customerId);
         if (user == null) {
-            throw new RuntimeException("User not found");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
         }
 
         user.setAdminNote(note);
@@ -80,7 +104,7 @@ public class AdminService {
     public Category addCategory(Category category) {
         Category existingCategory = categoryRepository.getCategoryByName(category.getName());
         if (existingCategory != null) {
-            throw new RuntimeException("Predefined category with this name already exists");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Predefined category with this name already exists");
         }
 
         category.setCreator(Role.ADMIN);
@@ -93,7 +117,7 @@ public class AdminService {
     public String deleteCategory(Long id) {
         Category category = categoryRepository.getCategoryById(id);
         if (category == null) {
-            throw new RuntimeException("Category not found");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Category not found");
         }
 
         categoryRepository.delete(category);
@@ -103,19 +127,30 @@ public class AdminService {
     public Currency addCurrency(Currency currency) {
         Currency existingCurrency = currencyRepository.getCurrencyByName(currency.getName());
         if (existingCurrency != null) {
-            throw new RuntimeException("Currency with this name already exists");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Currency with this name already exists");
         }
 
         currencyRepository.save(currency);
         return currency;
     }
     
-    public Dashboard getDashboard() {
+    public Dashboard getDashboard(String targetCurrencyName) {
+        Currency targetCurrency = currencyRepository.getCurrencyByName(CurrencyType.valueOf(targetCurrencyName));
+        if (targetCurrency == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid target currency");
+        }
+
         BigInteger allUsers = BigInteger.valueOf(userRepository.count());
         BigInteger activeUsers = BigInteger.valueOf(userRepository.countByBlockedFalse());
 
-        BigDecimal totalBalance = walletRepository.sumAllBalances();
-        BigDecimal activeUserBalance = walletRepository.sumBalancesForActiveUsers();
+        BigDecimal totalBalance = walletRepository.findAll().stream()
+                .map(wallet -> convertToTargetCurrency(wallet.getCurrentValue(), wallet.getCurrency(), targetCurrency))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal activeUserBalance = walletRepository.findAll().stream()
+                .filter(wallet -> !wallet.getUser().getBlocked())
+                .map(wallet -> convertToTargetCurrency(wallet.getCurrentValue(), wallet.getCurrency(), targetCurrency))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         Instant oneMonthAgo = LocalDate.now()
                 .minusMonths(1)
@@ -124,11 +159,35 @@ public class AdminService {
 
         Instant twoMinutesAgo = Instant.now().minus(2, ChronoUnit.MINUTES);
 
-        List<Transaction> topTenMonthlyTransactions =
-                transactionRepository.findTop10ByTransactionDateAfterOrderByAmountDesc(oneMonthAgo);
+        Function<Transaction, BigDecimal> convertToTarget = t -> {
+            BigDecimal fromRate = t.getWallet().getCurrency().getCurrencyValue();
+            BigDecimal toRate = targetCurrency.getCurrencyValue();
+            return t.getAmount().multiply(toRate).divide(fromRate, 2, RoundingMode.HALF_UP);
+        };
 
-        List<Transaction> topTenTwoMinutesTransactions =
-                transactionRepository.findTop10ByTransactionDateAfterOrderByAmountDesc(twoMinutesAgo);
+        List<TransactionViewDto> topTenMonthlyTransactions =
+                transactionRepository.findByTransactionDateAfter(oneMonthAgo).stream()
+                        .sorted((t1, t2) -> convertToTarget.apply(t2).compareTo(convertToTarget.apply(t1)))
+                        .limit(10)
+                        .map(t -> TransactionViewDto.builder()
+                                .name(t.getName())
+                                .date(t.getTransactionDate())
+                                .amount(convertToTarget.apply(t))
+                                .currency(targetCurrency.getName().name())
+                                .build())
+                        .toList();
+
+        List<TransactionViewDto> topTenTwoMinutesTransactions =
+                transactionRepository.findByTransactionDateAfter(twoMinutesAgo).stream()
+                        .sorted((t1, t2) -> convertToTarget.apply(t2).compareTo(convertToTarget.apply(t1)))
+                        .limit(10)
+                        .map(t -> TransactionViewDto.builder()
+                                .name(t.getName())
+                                .date(t.getTransactionDate())
+                                .amount(convertToTarget.apply(t))
+                                .currency(targetCurrency.getName().name())
+                                .build())
+                        .toList();
 
         return Dashboard.builder()
                 .allUsers(allUsers)
@@ -138,6 +197,13 @@ public class AdminService {
                 .topTenMonthlyTransactions(topTenMonthlyTransactions)
                 .topTenTwoMinutesTransactions(topTenTwoMinutesTransactions)
                 .build();
+    }
+
+    private BigDecimal convertToTargetCurrency(BigDecimal amount, Currency fromCurrency, Currency targetCurrency) {
+        if (fromCurrency.equals(targetCurrency)) return amount;
+        BigDecimal fromRate = fromCurrency.getCurrencyValue();
+        BigDecimal toRate = targetCurrency.getCurrencyValue();
+        return amount.multiply(toRate).divide(fromRate, 2, RoundingMode.HALF_UP);
     }
 
     public List<Transaction> transactionMonitoring(MonitoringRequest request) {

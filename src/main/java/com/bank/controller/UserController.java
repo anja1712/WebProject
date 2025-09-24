@@ -7,7 +7,9 @@ import com.bank.model.request.UserRequest;
 import com.bank.service.UserService;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
@@ -23,7 +25,7 @@ public class UserController {
     @PostMapping("/create")
     public User createUser(@RequestBody UserRequest request, HttpSession session) {
         if (session.getAttribute("ROLE") != ADMIN) {
-            throw new RuntimeException("Admin access required");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Admin access required");
         }
         return userService.createUser(request);
     }
@@ -34,8 +36,8 @@ public class UserController {
         Object currentUserId = session.getAttribute("USER_ID");
 
         if (role == USER) {
-            if (currentUserId != id) {
-                throw new RuntimeException("Access denied");
+            if (!currentUserId.equals(id)) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
             }
         }
 
@@ -56,8 +58,8 @@ public class UserController {
         Object currentUserId = session.getAttribute("USER_ID");
 
         if (role == USER) {
-            if (currentUserId != id) {
-                throw new RuntimeException("Access denied");
+            if (!currentUserId.equals(id)) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
             }
         }
 

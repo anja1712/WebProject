@@ -1,15 +1,11 @@
 package com.bank.service;
 
-import com.bank.model.Currency;
-import com.bank.model.Transaction;
-import com.bank.model.User;
-import com.bank.model.Wallet;
+import com.bank.model.*;
+import com.bank.model.dto.TransactionViewDto;
 import com.bank.model.enums.CurrencyType;
+import com.bank.model.request.GoalRequest;
 import com.bank.model.request.WalletRequest;
-import com.bank.repository.CurrencyRepository;
-import com.bank.repository.TransactionRepository;
-import com.bank.repository.UserRepository;
-import com.bank.repository.WalletRepository;
+import com.bank.repository.*;
 import jakarta.servlet.http.HttpSession;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 
@@ -29,6 +26,7 @@ public class WalletService {
     private final UserRepository userRepository;
     private final CurrencyRepository currencyRepository;
     private final TransactionRepository transactionRepository;
+    private final GoalRepository goalRepository;
 
     public Wallet addWallet(WalletRequest request) {
         User customer = userRepository.getUserById(request.getUserId());
@@ -125,16 +123,56 @@ public class WalletService {
         walletRepository.deleteById(id);
     }
 
-    public List<Transaction> getWalletTransactions(Long walletId) {
+    public List<TransactionViewDto> getWalletTransactions(Long walletId, HttpSession session) {
+        Long userId = (Long) session.getAttribute("USER_ID");
+
         Wallet wallet = walletRepository.getWalletById(walletId);
         if (wallet == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Wallet with id " + walletId + " not found");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Wallet not found");
         }
 
-        List<Transaction> transactions = transactionRepository.getTransactionByWalletId(wallet.getId());
-        if (transactions == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Transactions for wallet " + walletId + " not found");
+        if (!userId.equals(wallet.getUser().getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Wallet doesn't belong to user");
         }
-        return transactions;
+
+        return transactionRepository.findByWallet_Id(walletId).stream()
+                .map(t -> TransactionViewDto.builder()
+                        .name(t.getName())
+                        .date(t.getTransactionDate())
+                        .amount(t.getAmount())
+                        .type(t.getTransactionType())
+                        .currency(t.getCurrency())
+                        .build()
+                )
+                .toList();
+    }
+
+    public Goal createGoal(GoalRequest goalRequest, HttpSession session) {
+        Long userId = (Long) session.getAttribute("USER_ID");
+        Wallet wallet = walletRepository.getWalletById(goalRequest.getWalletId());
+        if (wallet == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Wallet with id " + goalRequest.getWalletId() + " not found");
+        }
+
+        if (!wallet.getUser().getId().equals(userId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User doesn't belong to user");
+        }
+
+        if (!wallet.getSavings()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Need to select savings wallet");
+        }
+
+        Goal goal = new Goal();
+        goal.setName(goalRequest.getName());
+        goal.setCurrentAmount(wallet.getCurrentValue());
+        goal.setGoalAmount(goalRequest.getGoalAmount());
+        goal.setWallet(wallet);
+        goal.setUser(userRepository.findById(userId).get());
+        goal.setStartDate(Instant.now());
+        goal.setTargetDate(goalRequest.getTargetDate());
+
+        goalRepository.save(goal);
+
+        return goal;
     }
 }

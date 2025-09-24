@@ -16,6 +16,9 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
 	List<Transaction> findByRecurringTrue();
     List<Transaction> findByUserIdAndTransactionDateBetween(Long userId, Instant startDate, Instant endDate);
 
-    List<Transaction> findTop10ByTransactionDateAfterOrderByAmountDesc(Instant fromDate);
+    List<Transaction> findByWallet_Id(@NotNull long walletId);
 
+    List<Transaction> findByUserId(@NotNull Long user_id);
+
+    List<Transaction> findByTransactionDateAfter(Instant date);
 }

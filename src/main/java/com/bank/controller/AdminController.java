@@ -4,6 +4,7 @@ import com.bank.model.Category;
 import com.bank.model.Currency;
 import com.bank.model.Transaction;
 import com.bank.model.dto.Dashboard;
+import com.bank.model.dto.TransactionViewDto;
 import com.bank.model.enums.Role;
 import com.bank.model.enums.UserStatus;
 import com.bank.model.request.MonitoringRequest;
@@ -27,6 +28,12 @@ public class AdminController {
     public String changeUserStatus(@PathVariable Long id, @RequestParam UserStatus status, HttpSession session) {
         checkAccess(session);
         return adminService.changeCustomerStatus(id, status);
+    }
+
+    @GetMapping("/users/{id}/transactions")
+    public List<TransactionViewDto> getTransactionsForUser(@PathVariable Long id, HttpSession session) {
+        checkAccess(session);
+        return adminService.getTransactionsForUser(id);
     }
 
     @PutMapping("/users/{id}/note")
@@ -60,9 +67,9 @@ public class AdminController {
     }
     
     @GetMapping("/dashboard")
-    public Dashboard getDashboard(HttpSession session) {
+    public Dashboard getDashboard(@RequestParam String currency, HttpSession session) {
         checkAccess(session);
-        return adminService.getDashboard();
+        return adminService.getDashboard(currency);
     }
 
     @GetMapping("/monitor")
