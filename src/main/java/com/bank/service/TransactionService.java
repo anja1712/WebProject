@@ -77,7 +77,7 @@ public class TransactionService {
 			transactionToSave.setSourceWallet(sourceWallet);
 			transactionToSave.setDestinationWallet(destinationWallet);
 		}
-
+		
 		Currency currency = currencyRepository.getCurrencyByName(CurrencyType.valueOf(request.getCurrency()));
 		if (currency == null) {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Transaction with currency " + request.getCurrency() + " is not allowed");
@@ -136,7 +136,7 @@ public class TransactionService {
 		return transactionToSave;
 	}
 	
-	public String transferFunds(Long fromWalletId, Long toWalletId, BigDecimal amount, HttpSession session) {
+	public String transferFunds(Long fromWalletId, Long toWalletId, BigDecimal amount, HttpSession session, Currency transactionCurrency) {
 		Object userId = session.getAttribute("USER_ID");
 
 		Wallet fromWallet = walletRepository.getWalletById(fromWalletId);
@@ -157,31 +157,47 @@ public class TransactionService {
 			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Destination wallet doesn't belong to logged in user");
 		}
 		
-		BigDecimal value = fromWallet.getCurrentValue();
-		if(value.compareTo(amount) < 0) {
-			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Insufficient funds");
-		}
+		
 		
 		Currency fromCurrency = fromWallet.getCurrency();
 		Currency toCurrency = toWallet.getCurrency();
 		
-		BigDecimal convertedAmount = amount;
-		if(!fromCurrency.equals(toCurrency)){
+		BigDecimal firstConvertedAmount = amount;
+		BigDecimal secondConvertedAmount = amount;
+	
+	//first conversion: transactionCurrency to fromCurrency
+		if(!fromCurrency.equals(transactionCurrency)){
 			BigDecimal fromRate = fromCurrency.getCurrencyValue();
-			BigDecimal toRate = toCurrency.getCurrencyValue();
+			BigDecimal transactionRate = transactionCurrency.getCurrencyValue();
 			
-			BigDecimal amountInBase = amount.multiply(fromRate);
+			BigDecimal amountInBase = amount.multiply(transactionRate);
 			
-			convertedAmount = amountInBase.divide(toRate, 2, RoundingMode.HALF_UP);
+			firstConvertedAmount = amountInBase.divide(fromRate, 2, RoundingMode.HALF_UP);
 		}
 		
-		fromWallet.setCurrentValue(fromWallet.getCurrentValue().subtract(amount));
-		toWallet.setCurrentValue(toWallet.getCurrentValue().add(convertedAmount));
+		BigDecimal value = fromWallet.getCurrentValue();
+		if(value.compareTo(firstConvertedAmount) < 0) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Insufficient funds");
+		}
+		
+	//second conversion: transactionCurrency to toCurrency	
+		if(!transactionCurrency.equals(toCurrency)){
+			BigDecimal transactionRate = transactionCurrency.getCurrencyValue();
+			BigDecimal toRate = toCurrency.getCurrencyValue();
+			BigDecimal amountInBase = amount.multiply(transactionRate);
+			
+			secondConvertedAmount = amountInBase.divide(toRate, 2, RoundingMode.HALF_UP);
+		}
+		
+		fromWallet.setCurrentValue(fromWallet.getCurrentValue().subtract(firstConvertedAmount));
+		toWallet.setCurrentValue(toWallet.getCurrentValue().add(secondConvertedAmount));
+		
 		walletRepository.save(fromWallet);
 		walletRepository.save(toWallet);
 
-		return convertedAmount + " transferred from " + fromWallet.getId() + " to " + toWallet.getId();
+		return secondConvertedAmount.setScale(2, RoundingMode.HALF_UP) + " transferred from " + fromWallet.getId() + " to " + toWallet.getId();
 	}
+		
 
 	public List<TransactionDTO> getTransactions(Long userId, PeriodType periodType) {
 		return userRepository.findById(userId)
@@ -302,9 +318,9 @@ public class TransactionService {
 					.toInstant();
 		};
 	}
-	private Date calculateNextDate(Date date, Frequency frequency) {
+	private Date calculateNextDate(Date lastProcessedDate, Frequency frequency) {
 	    Calendar cal = Calendar.getInstance();
-	    cal.setTime(date);
+	    cal.setTime(lastProcessedDate);
 	    switch (frequency) {
 	        case WEEKLY:
 	            cal.add(Calendar.WEEK_OF_YEAR, 1);
@@ -366,4 +382,61 @@ public class TransactionService {
 //			}
 //		}
 //	}
+	public void processRecurringTransactions() {
+		List<Transaction> recurringTransactions = transactionRepository.findByRecurringTrue();
+		
+		Date now = new Date();
+		for (Transaction t : recurringTransactions) {
+			Date lastProcessedDate = Date.from(t.getTransactionDate());              //we avoided using the type Instant
+			Date nextDate = calculateNextDate(lastProcessedDate, t.getFrequency());
+			
+			List<Transaction> transactionsToSave = new ArrayList<>();
+			
+			while (!nextDate.after(now)) {
+				Transaction newTransaction = new Transaction();
+				
+				newTransaction.setName(t.getName());
+				newTransaction.setAmount(t.getAmount());
+				newTransaction.setTransactionType(t.getTransactionType());
+				newTransaction.setCategory(t.getCategory());
+				newTransaction.setUser(t.getUser());
+				newTransaction.setWallet(t.getWallet());
+				newTransaction.setRecurring(true);
+				newTransaction.setFrequency(t.getFrequency());
+				newTransaction.setTransactionDate(nextDate.toInstant());
+				
+				updateWalletBalance(newTransaction);
+				
+				transactionsToSave.add(newTransaction);
+				
+				lastProcessedDate = nextDate;
+				nextDate = calculateNextDate(lastProcessedDate, t.getFrequency());
+			}
+			
+			if (!transactionsToSave.isEmpty()) {
+				transactionRepository.saveAll(transactionsToSave);
+				
+				t.setTransactionDate(lastProcessedDate.toInstant());
+				transactionRepository.save(t);
+			}
+		}
+	}
+	
+	private void updateWalletBalance(Transaction transaction) {
+		Wallet wallet = transaction.getWallet();
+		BigDecimal currentValue = wallet.getCurrentValue();
+		BigDecimal amount = transaction.getAmount();
+		
+		if (transaction.getTransactionType() == TransactionType.EXPENSE) {
+			BigDecimal newValue = currentValue.subtract(amount);
+			
+			if (newValue.compareTo(BigDecimal.ZERO) < 0) {
+				throw new IllegalStateException("Insufficient funds in the wallet: " + wallet.getName());
+			}
+			wallet.setCurrentValue(newValue);
+		}
+		walletRepository.save(wallet);
+	}
+	
+	
 }
