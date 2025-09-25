@@ -7,6 +7,7 @@ import com.bank.model.dto.TransactionOverview;
 import com.bank.model.enums.CurrencyType;
 import com.bank.model.enums.Frequency;
 import com.bank.model.enums.PeriodType;
+import com.bank.model.enums.TransactionType;
 import com.bank.model.request.TransactionRequest;
 import com.bank.model.request.TransactionStatisticsRequest;
 import com.bank.repository.*;
@@ -66,12 +67,13 @@ public class TransactionService {
 		}
 
 		Currency currency = currencyRepository.getCurrencyByName(CurrencyType.valueOf(request.getCurrency()));
-		if (currency == null) {
-			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Transaction with currency " + request.getCurrency() + " is not allowed");
-		}
-
+		BigDecimal amountInWalletCurrency = request.getAmount();
 		if (wallet.getCurrency().getId() != currency.getId()) {
-			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Wallet does not support " + currency.getName() + "transactions");
+			BigDecimal fromRate = currency.getCurrencyValue();
+			BigDecimal toRate = wallet.getCurrency().getCurrencyValue();
+			amountInWalletCurrency = request.getAmount()
+					.multiply(toRate)
+					.divide(fromRate, 2, RoundingMode.HALF_UP);
 		}
 
 		Category resultCategory = categoryRepository.findByNameAndTransactionTypeAndPredefinedTrue(request.getCategory(), request.getType());
@@ -100,7 +102,7 @@ public class TransactionService {
 		transactionToSave.setCategory(resultCategory.getName());
 		transactionToSave.setUser(user);
 
-		Wallet updatedWallet = updateWalletBalance(request, wallet);
+		Wallet updatedWallet = updateWalletBalance(amountInWalletCurrency, transactionToSave.getTransactionType(), wallet);
 		transactionToSave.setWallet(updatedWallet);
 
 		if (request.getRecurring() && request.getFrequency() != null) {
@@ -204,14 +206,17 @@ public class TransactionService {
 		BigDecimal expenseSum = BigDecimal.ZERO;
 
 		Map<String, BigDecimal> categoriesDisplay = new HashMap<>();
-		Map<String, BigDecimal> topTenExpenses = new HashMap<>();
 		List<Transaction> expenseTransactions = new ArrayList<>();
 
 		for (Transaction transaction : transactions) {
 			BigDecimal amount = transaction.getAmount();
 			if (amount == null) continue;
 
-			BigDecimal fromRate = transaction.getWallet().getCurrency().getCurrencyValue();
+			Currency transactionCurrency = currencyRepository.getCurrencyByName(
+					CurrencyType.valueOf(transaction.getCurrency())
+			);
+
+			BigDecimal fromRate = transactionCurrency.getCurrencyValue();
 			BigDecimal toRate = targetCurrency.getCurrencyValue();
 			BigDecimal convertedAmount = amount.multiply(toRate).divide(fromRate, 2, RoundingMode.HALF_UP);
 
@@ -227,20 +232,27 @@ public class TransactionService {
 			categoriesDisplay.merge(categoryName, convertedAmount, BigDecimal::add);
 		}
 
-		expenseTransactions.stream()
+		List<Map.Entry<String, BigDecimal>> topTenExpenses = expenseTransactions.stream()
 				.sorted((t1, t2) -> {
+					Currency c1 = currencyRepository.getCurrencyByName(CurrencyType.valueOf(t1.getCurrency()));
+					Currency c2 = currencyRepository.getCurrencyByName(CurrencyType.valueOf(t2.getCurrency()));
+
 					BigDecimal a1 = t1.getAmount().multiply(targetCurrency.getCurrencyValue())
-							.divide(t1.getWallet().getCurrency().getCurrencyValue(), 2, RoundingMode.HALF_UP);
+							.divide(c1.getCurrencyValue(), 2, RoundingMode.HALF_UP);
 					BigDecimal a2 = t2.getAmount().multiply(targetCurrency.getCurrencyValue())
-							.divide(t2.getWallet().getCurrency().getCurrencyValue(), 2, RoundingMode.HALF_UP);
+							.divide(c2.getCurrencyValue(), 2, RoundingMode.HALF_UP);
+
 					return a2.compareTo(a1);
 				})
 				.limit(10)
-				.forEach(t -> {
+				.map(t -> {
+					Currency c = currencyRepository.getCurrencyByName(CurrencyType.valueOf(t.getCurrency()));
 					BigDecimal converted = t.getAmount().multiply(targetCurrency.getCurrencyValue())
-							.divide(t.getWallet().getCurrency().getCurrencyValue(), 2, RoundingMode.HALF_UP);
-					topTenExpenses.put(t.getName(), converted);
-				});
+							.divide(c.getCurrencyValue(), 2, RoundingMode.HALF_UP);
+
+					return Map.entry(t.getId() + " - " + t.getName(), converted);
+				})
+				.collect(Collectors.toList());
 
 		return TransactionOverview.builder()
 				.income(incomeSum)
@@ -303,65 +315,67 @@ public class TransactionService {
 		}
 	}
 
-	private Wallet updateWalletBalance(TransactionRequest request, Wallet wallet) {
+	private Wallet updateWalletBalance(BigDecimal convertedAmount, TransactionType type, Wallet wallet) {
 		BigDecimal walletAmount = wallet.getCurrentValue();
-		BigDecimal transactionAmount = request.getAmount();
-		BigDecimal newAmount = BigDecimal.ZERO;
+		BigDecimal newAmount;
 
-		if (request.getType().equals(EXPENSE)) {
-			newAmount = walletAmount.subtract(transactionAmount);
+		if (type.equals(EXPENSE)) {
+			newAmount = walletAmount.subtract(convertedAmount);
 			if (newAmount.compareTo(BigDecimal.ZERO) < 0) {
-				throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Insufficient funds in the wallet: " + wallet.getName());
+				throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+						"Insufficient funds in the wallet: " + wallet.getName());
 			}
-
-		} else if (request.getType().equals(INCOME)) {
-			newAmount = walletAmount.add(transactionAmount);
+		} else if (type.equals(INCOME)) {
+			newAmount = walletAmount.add(convertedAmount);
+		} else {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported transaction type");
 		}
 
 		wallet.setCurrentValue(newAmount);
-		walletRepository.save(wallet);
-		return wallet;
+		return walletRepository.save(wallet);
 	}
 
 	public void processRecurringTransactions() {
 		List<Transaction> recurringTransactions = transactionRepository.findByRecurringTrue();
 
 		Instant now = Instant.now();
+		List<Transaction> transactionsToSave = new ArrayList<>();
 
 		for (Transaction t : recurringTransactions) {
-			Instant lastProcessed = t.getTransactionDate();
-			Instant nextDate = calculateNextDate(lastProcessed, t.getFrequency());
+			if (t.getFrequency() != null) {
+				Instant lastProcessed = t.getTransactionDate();
+				Instant nextDate = calculateNextDate(lastProcessed, t.getFrequency());
 
-			List<Transaction> transactionsToSave = new ArrayList<>();
+				while (!nextDate.isAfter(now)) {
+					Transaction newTransaction = new Transaction();
+					newTransaction.setName(t.getName());
+					newTransaction.setCurrency(t.getCurrency());
+					newTransaction.setAmount(t.getAmount());
+					newTransaction.setTransactionType(t.getTransactionType());
+					newTransaction.setCategory(t.getCategory());
+					newTransaction.setUser(t.getUser());
+					newTransaction.setWallet(t.getWallet());
+					newTransaction.setRecurring(true);
+					newTransaction.setFrequency(t.getFrequency());
+					newTransaction.setTransactionDate(nextDate);
 
-			while (!nextDate.isAfter(now)) {
-				Transaction newTransaction = new Transaction();
-				newTransaction.setName(t.getName());
-				newTransaction.setAmount(t.getAmount());
-				newTransaction.setTransactionType(t.getTransactionType());
-				newTransaction.setCategory(t.getCategory());
-				newTransaction.setUser(t.getUser());
-				newTransaction.setWallet(t.getWallet());
-				newTransaction.setRecurring(true);
-				newTransaction.setFrequency(t.getFrequency());
-				newTransaction.setTransactionDate(nextDate);
+					updateWalletBalance(
+							newTransaction.getAmount(),
+							newTransaction.getTransactionType(),
+							t.getWallet());
 
-				updateWalletBalance(TransactionRequest.builder()
-								.type(newTransaction.getTransactionType())
-								.amount(newTransaction.getAmount())
-								.build(), t.getWallet());
+					transactionsToSave.add(newTransaction);
 
-				transactionsToSave.add(newTransaction);
+					lastProcessed = nextDate;
+					nextDate = calculateNextDate(lastProcessed, t.getFrequency());
+				}
 
-				lastProcessed = nextDate;
-				nextDate = calculateNextDate(lastProcessed, t.getFrequency());
-			}
+				if (!transactionsToSave.isEmpty()) {
+					transactionRepository.saveAll(transactionsToSave);
 
-			if (!transactionsToSave.isEmpty()) {
-				transactionRepository.saveAll(transactionsToSave);
-
-				t.setTransactionDate(lastProcessed);
-				transactionRepository.save(t);
+					t.setTransactionDate(lastProcessed);
+					transactionRepository.save(t);
+				}
 			}
 		}
 	}
