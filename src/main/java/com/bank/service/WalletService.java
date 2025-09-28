@@ -1,11 +1,14 @@
 package com.bank.service;
 
 import com.bank.model.*;
+import com.bank.model.dto.GoalDto;
 import com.bank.model.dto.TransactionViewDto;
+import com.bank.model.dto.WalletDto;
 import com.bank.model.enums.CurrencyType;
 import com.bank.model.request.GoalRequest;
 import com.bank.model.request.WalletRequest;
 import com.bank.repository.*;
+import com.bank.utils.DtoMapper;
 import jakarta.servlet.http.HttpSession;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -27,69 +30,82 @@ public class WalletService {
     private final CurrencyRepository currencyRepository;
     private final TransactionRepository transactionRepository;
     private final GoalRepository goalRepository;
+    private final DtoMapper dtoMapper;
 
-    public Wallet addWallet(WalletRequest request) {
-        User customer = userRepository.getUserById(request.getUserId());
-        if (customer == null) {
+    public WalletDto addWallet(WalletRequest request) {
+        User user = userRepository.getUserById(request.getUserId());
+        if (user == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Customer with id " + request.getUserId() + " not found");
         }
 
-        Currency currency = currencyRepository.getCurrencyByName(CurrencyType.valueOf(request.getCurrencyType().name()));
+        Currency currency = currencyRepository.getCurrencyByName(CurrencyType.valueOf(request.getCurrency()));
         if (currency == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Currency with name " + request.getCurrencyType() + " not found");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Currency with name " + request.getCurrency() + " not found");
         }
 
         Wallet walletToSave = new Wallet();
         walletToSave.setName(request.getName());
-        walletToSave.setInitValue(request.getInitialValue());
-        walletToSave.setCurrentValue(request.getInitialValue());
+        walletToSave.setInitAmount(request.getInitialAmount());
+        walletToSave.setCurrentAmount(request.getInitialAmount());
         walletToSave.setCurrency(currency);
-        walletToSave.setUser(customer);
+        walletToSave.setUser(user);
         walletToSave.setSavings(request.getSavings());
-        walletToSave.setArchive(false);
+        walletToSave.setArchived(false);
+        walletToSave.setModified(Instant.now());
 
-        return walletRepository.save(walletToSave);
+        walletRepository.save(walletToSave);
+
+        return dtoMapper.toDto(walletToSave);
     }
 
     @Transactional
-    public Wallet updateWallet(Long id, WalletRequest request) {
+    public WalletDto updateWallet(Long id, WalletRequest request, HttpSession session) {
+        Long userId = (Long) session.getAttribute("USER_ID");
+
         Wallet wallet = walletRepository.getWalletById(id);
-        if(wallet == null) {
+        if(wallet == null || !Objects.equals(wallet.getUser().getId(), userId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Wallet with id " + id + " not found");
         }
 
-        Currency currency = currencyRepository.getCurrencyByName(CurrencyType.valueOf(request.getCurrencyType().name()));
+        Currency currency = currencyRepository.getCurrencyByName(CurrencyType.valueOf(request.getCurrency()));
         if (currency == null) {
-            throw new RuntimeException("Currency with name " + request.getCurrencyType() + " not found");
+            throw new RuntimeException("Currency with name " + request.getCurrency() + " not found");
         }
 
         if (request.getName() != null)
             wallet.setName(request.getName());
 
-        if (request.getCurrentValue() != null)
-            wallet.setCurrentValue(request.getCurrentValue());
+        if (request.getCurrentAmount() != null)
+            wallet.setCurrentAmount(request.getCurrentAmount());
 
         if (request.getSavings() != null)
             wallet.setSavings(request.getSavings());
 
-        if(request.getCurrencyType() != null)
+        if(request.getCurrency() != null)
             wallet.setCurrency(currency);
 
-        return walletRepository.save(wallet);
+        if(request.getArchived() != null) {
+            wallet.setArchived(request.getArchived());
+        }
+
+        wallet.setModified(Instant.now());
+
+        walletRepository.save(wallet);
+
+        return dtoMapper.toDto(wallet);
     }
 
-    public List<Wallet> getAllWallets(HttpSession session) {
-        Long userId = (Long) session.getAttribute("USER_ID");
+    public List<WalletDto> getAllWallets(Long userId) {
         List<Wallet> wallets = walletRepository.getWalletsByUserId(userId) ;
 
         if (wallets.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No wallets found");
         }
 
-        return wallets;
+        return wallets.stream().map(dtoMapper::toDto).toList();
     }
 
-    public Wallet getWallet(Long id, HttpSession session) {
+    public WalletDto getWallet(Long id, HttpSession session) {
         Long userId = (Long) session.getAttribute("USER_ID");
         Wallet wallet = walletRepository.getWalletById(id);
 
@@ -97,18 +113,33 @@ public class WalletService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Wallet with id " + id + " not found");
         }
 
-        return wallet;
+        return dtoMapper.toDto(wallet);
     }
 
-    public void archiveWallet(Long id, HttpSession session) {
+    public WalletDto archiveWallet(Long id, HttpSession session) {
         Long userId = (Long) session.getAttribute("USER_ID");
         Wallet wallet = walletRepository.getWalletById(id);
         if (wallet == null || !Objects.equals(wallet.getUser().getId(), userId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Wallet with id " + id + " not found");
         }
 
-        wallet.setArchive(true);
+        wallet.setArchived(true);
         walletRepository.save(wallet);
+
+        return dtoMapper.toDto(wallet);
+    }
+
+    public WalletDto unarchiveWallet(Long id, HttpSession session) {
+        Long userId = (Long) session.getAttribute("USER_ID");
+        Wallet wallet = walletRepository.getWalletById(id);
+        if (wallet == null || !Objects.equals(wallet.getUser().getId(), userId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Wallet with id " + id + " not found");
+        }
+
+        wallet.setArchived(false);
+        walletRepository.save(wallet);
+
+        return dtoMapper.toDto(wallet);
     }
 
     public void deleteWallet(Long id, HttpSession session) {
@@ -147,7 +178,7 @@ public class WalletService {
                 .toList();
     }
 
-    public Goal createGoal(GoalRequest goalRequest, HttpSession session) {
+    public GoalDto createGoal(GoalRequest goalRequest, HttpSession session) {
         Long userId = (Long) session.getAttribute("USER_ID");
         Wallet wallet = walletRepository.getWalletById(goalRequest.getWalletId());
         if (wallet == null) {
@@ -164,7 +195,7 @@ public class WalletService {
 
         Goal goal = new Goal();
         goal.setName(goalRequest.getName());
-        goal.setCurrentAmount(wallet.getCurrentValue());
+        goal.setCurrentAmount(wallet.getCurrentAmount());
         goal.setGoalAmount(goalRequest.getGoalAmount());
         goal.setWallet(wallet);
         goal.setUser(userRepository.findById(userId).get());
@@ -173,6 +204,6 @@ public class WalletService {
 
         goalRepository.save(goal);
 
-        return goal;
+        return dtoMapper.toDto(goal);
     }
 }

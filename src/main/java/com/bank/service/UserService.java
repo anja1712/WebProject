@@ -3,10 +3,12 @@ package com.bank.service;
 import com.bank.model.Category;
 import com.bank.model.User;
 import com.bank.model.dto.CategoryViewDto;
+import com.bank.model.dto.UserDto;
 import com.bank.model.enums.TransactionType;
 import com.bank.model.request.UserRequest;
 import com.bank.repository.CategoryRepository;
 import com.bank.repository.UserRepository;
+import com.bank.utils.DtoMapper;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -22,6 +24,7 @@ import static com.bank.model.enums.Role.USER;
 public class UserService {
     private final UserRepository userRepository;
     private final CategoryRepository categoryRepository;
+    private final DtoMapper dtoMapper;
 
     public User createUser(UserRequest request) {
         User user = new User();
@@ -35,10 +38,12 @@ public class UserService {
         user.setRole(USER);
         user.setProfilePicture("https://profile.png");
 
-        return userRepository.save(user);
+        userRepository.save(user);
+
+        return user;
     }
 
-    public User updateUser(Long id, User update) {
+    public UserDto updateUser(Long id, User update) {
         User existingUser = userRepository.getUserById(id);
         if (existingUser == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "user with id " + id + " doesn't exist");
@@ -51,9 +56,10 @@ public class UserService {
         existingUser.setEmail(update.getEmail() != null ? update.getEmail() : existingUser.getEmail());
         existingUser.setPassword(update.getPassword() != null ? update.getPassword() : existingUser.getPassword());
         existingUser.setProfilePicture(update.getProfilePicture() != null ? update.getProfilePicture() : existingUser.getProfilePicture());
-        existingUser.setAdminNote(update.getAdminNote() != null ? update.getAdminNote() : existingUser.getAdminNote());
 
-        return userRepository.save(existingUser);
+        userRepository.save(existingUser);
+
+        return dtoMapper.toDto(existingUser);
     }
 
     public User getUserById(Long id) {

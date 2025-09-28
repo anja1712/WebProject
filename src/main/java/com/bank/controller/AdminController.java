@@ -7,6 +7,7 @@ import com.bank.model.dto.Dashboard;
 import com.bank.model.dto.TransactionViewDto;
 import com.bank.model.enums.Role;
 import com.bank.model.enums.UserStatus;
+import com.bank.model.request.CurrencyRequest;
 import com.bank.model.request.MonitoringRequest;
 import com.bank.service.AdminService;
 import jakarta.servlet.http.HttpSession;
@@ -59,23 +60,35 @@ public class AdminController {
         checkAccess(session);
         return adminService.deleteCategory(id);
     }
-
-    @PostMapping("/currencies")
-    public Currency addCurrency(@RequestBody Currency currency, HttpSession session) {
-        checkAccess(session);
-        return adminService.addCurrency(currency);
-    }
     
     @GetMapping("/dashboard")
-    public Dashboard getDashboard(@RequestParam String currency, HttpSession session) {
+    public Dashboard getDashboard(HttpSession session) {
         checkAccess(session);
-        return adminService.getDashboard(currency);
+        return adminService.getDashboard();
     }
 
     @GetMapping("/monitor")
     public List<Transaction> transactionMonitoring(@RequestBody MonitoringRequest request, HttpSession session) {
         checkAccess(session);
         return adminService.transactionMonitoring(request);
+    }
+
+    @PostMapping("/currencies")
+    public Currency addCurrency(@RequestBody CurrencyRequest request, HttpSession session) {
+        checkAccess(session);
+        return adminService.addCurrency(request);
+    }
+
+    @GetMapping("/currencies/all")
+    public List<Currency> getCurrencies(HttpSession session) {
+        checkAccess(session);
+        return adminService.getCurrencies();
+    }
+
+    @DeleteMapping("/currencies/{id}/delete")
+    public void deleteCurrency(@PathVariable Long id, HttpSession session) {
+        checkAccess(session);
+        adminService.deleteCurrency(id);
     }
 
     private void checkAccess(HttpSession session) {

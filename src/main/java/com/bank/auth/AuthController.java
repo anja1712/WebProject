@@ -4,7 +4,9 @@ import com.bank.model.User;
 import com.bank.model.enums.Role;
 import com.bank.model.request.UserRequest;
 import com.bank.repository.UserRepository;
+import com.bank.utils.DtoMapper;
 import jakarta.servlet.http.HttpSession;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -15,17 +17,15 @@ import java.time.Instant;
 
 @RestController
 @RequestMapping("/auth")
+@RequiredArgsConstructor
 public class AuthController {
-
 	private final UserRepository userRepository;
-	private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+    private final DtoMapper dtoMapper;
+    private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
-	public AuthController(UserRepository userRepository) {
-		this.userRepository = userRepository;
-    }
 
 	@PostMapping("/signup")
-	public ResponseEntity<String> signup(@RequestBody UserRequest userRequest,
+	public ResponseEntity<?> signup(@RequestBody UserRequest userRequest,
 										 @RequestParam(defaultValue = "USER") String role,
 										 HttpSession session) {
 		if (userRepository.findByEmail(userRequest.getEmail()) != null) {
@@ -51,11 +51,11 @@ public class AuthController {
 		session.setAttribute("USER_NAME", user.getUserName());
 		session.setAttribute("ROLE", user.getRole());
 
-		return ResponseEntity.ok("Signed up and logged in as " + user.getUserName());
+		return ResponseEntity.ok(dtoMapper.toDto(user));
     }
 
     @PostMapping("/login")
-    public ResponseEntity<String> login(@RequestParam String email,
+    public ResponseEntity<?> login(@RequestParam String email,
                                         @RequestParam String password,
                                         HttpSession session) {
 
@@ -77,34 +77,20 @@ public class AuthController {
         session.setAttribute("ROLE", user.getRole());
         session.setAttribute("USER_NAME", user.getUserName());
 
-        String loggedResult = "Unidentified";
-        if (user.getRole() == Role.ADMIN) {
-            loggedResult = "Logged in as admin : " + user.getUserName();
-        } else if (user.getRole() == Role.USER) {
-            loggedResult = "Logged in as : " + user.getUserName();
-        }
-
-        return ResponseEntity.ok(loggedResult);
+        return ResponseEntity.ok(dtoMapper.toDto(user));
     }
 
     @GetMapping("/me")
-    public ResponseEntity<String> me(HttpSession session) {
+    public ResponseEntity<?> me(HttpSession session) {
         Object userId = session.getAttribute("USER_ID");
-        Object role = session.getAttribute("ROLE");
-        Object userName = session.getAttribute("USER_NAME");
 
         if (userId == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not signed in");
         }
 
-        String loggedResult = "Unidentified";
-        if (role == Role.ADMIN) {
-            loggedResult = "Logged in as admin : " + userName;
-        } else if (role == Role.USER) {
-            loggedResult = "Logged in as : " + userName;
-        }
+        User user = userRepository.getUserById((Long) userId);
 
-        return ResponseEntity.ok(loggedResult);
+        return ResponseEntity.ok(dtoMapper.toDto(user));
     }
 
     @PostMapping("/logout")
