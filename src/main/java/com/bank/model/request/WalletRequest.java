@@ -1,6 +1,5 @@
 package com.bank.model.request;
 
-import com.bank.model.enums.CurrencyType;
 import lombok.Builder;
 import lombok.Data;
 
@@ -10,11 +9,10 @@ import java.math.BigDecimal;
 @Builder
 public class WalletRequest {
     private String name;
-    private BigDecimal initialValue;
-    private BigDecimal currentValue;
-    private CurrencyType currencyType;
-    //what address for
-    private String address;
+    private BigDecimal initialAmount;
+    private BigDecimal currentAmount;
+    private String currency;
     private Long userId;
     private Boolean savings;
+    private Boolean archived;
 }

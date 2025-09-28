@@ -35,19 +35,19 @@ public class Wallet extends AbstractEntity {
 	private String name;
 
 	@NotNull
-	@Column(name = "init_value")
-	private BigDecimal initValue;
+	@Column(name = "init_amount")
+	private BigDecimal initAmount;
 
 	@NotNull
-	@Column(name = "current_value")
-	private BigDecimal currentValue;
+	@Column(name = "current_amount")
+	private BigDecimal currentAmount;
 	
 	@OneToOne(fetch = FetchType.EAGER, optional = false)
-	@JoinColumn(name = "currency_id", nullable = false, updatable = true)
+	@JoinColumn(name = "currency_id", nullable = false)
 	private Currency currency;
 
 	@OneToOne(fetch = FetchType.EAGER, optional = false)
-	@JoinColumn(name = "user_id", nullable = false, updatable = true)
+	@JoinColumn(name = "user_id", nullable = false)
 	private User user;
 
 	@NotNull
@@ -55,6 +55,6 @@ public class Wallet extends AbstractEntity {
 	private Boolean savings;
 
 	@NotNull
-	@Column(name = "archive")
-	private Boolean archive;
+	@Column(name = "archived")
+	private Boolean archived;
 }

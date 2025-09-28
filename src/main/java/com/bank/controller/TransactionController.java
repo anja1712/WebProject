@@ -1,6 +1,6 @@
 package com.bank.controller;
 
-import com.bank.model.Transaction;
+import com.bank.model.dto.TransactionFullDto;
 import com.bank.model.dto.TransactionOverview;
 import com.bank.model.enums.PeriodType;
 import com.bank.model.request.TransactionRequest;
@@ -22,7 +22,7 @@ public class TransactionController {
 	private final TransactionService transactionService;
 	
 	@PostMapping("/make")
-	public Transaction makeTransaction(@RequestBody TransactionRequest transactionRequest, HttpSession session) {
+	public TransactionFullDto makeTransaction(@RequestBody TransactionRequest transactionRequest, HttpSession session) {
 	 return transactionService.makeTransaction(transactionRequest, session);
 	}
 

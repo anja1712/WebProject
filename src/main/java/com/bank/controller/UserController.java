@@ -2,6 +2,7 @@ package com.bank.controller;
 
 import com.bank.model.User;
 import com.bank.model.dto.CategoryViewDto;
+import com.bank.model.dto.UserDto;
 import com.bank.model.enums.TransactionType;
 import com.bank.model.request.UserRequest;
 import com.bank.service.UserService;
@@ -31,7 +32,7 @@ public class UserController {
     }
 
     @PutMapping("/{id}/update")
-    public User updateUser(@PathVariable("id") Long id, @RequestBody User update, HttpSession session) {
+    public UserDto updateUser(@PathVariable("id") Long id, @RequestBody User update, HttpSession session) {
         Object role = session.getAttribute("ROLE");
         Object currentUserId = session.getAttribute("USER_ID");
 
@@ -41,15 +42,7 @@ public class UserController {
             }
         }
 
-        User user = userService.updateUser(id, update);
-
-        if (user.getAdminNote() != null) {
-            if (session.getAttribute("ROLE") != ADMIN) {
-                user.setAdminNote(null);
-            }
-        }
-
-        return user;
+        return userService.updateUser(id, update);
     }
 
     @GetMapping("/{id}")

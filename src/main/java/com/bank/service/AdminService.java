@@ -9,6 +9,7 @@ import com.bank.model.dto.TransactionViewDto;
 import com.bank.model.enums.CurrencyType;
 import com.bank.model.enums.Role;
 import com.bank.model.enums.UserStatus;
+import com.bank.model.request.CurrencyRequest;
 import com.bank.model.request.MonitoringRequest;
 import com.bank.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -124,18 +125,35 @@ public class AdminService {
         return "Category deleted";
     }
 
-    public Currency addCurrency(Currency currency) {
-        Currency existingCurrency = currencyRepository.getCurrencyByName(currency.getName());
-        if (existingCurrency != null) {
+    public Currency addCurrency(CurrencyRequest request) {
+        Currency currency;
+
+        currency = currencyRepository.getCurrencyByName(CurrencyType.valueOf(request.getName()));
+        if (currency != null) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Currency with this name already exists");
         }
+
+        currency = new Currency();
+
+        currency.setName(CurrencyType.valueOf(request.getName()));
+        currency.setCurrencyValue(request.getExchangeRateToDollar());
+        currency.setCreated(Instant.now());
+        currency.setModified(Instant.now());
 
         currencyRepository.save(currency);
         return currency;
     }
+
+    public List<Currency> getCurrencies() {
+        return currencyRepository.findAll();
+    }
+
+    public void deleteCurrency(Long id) {
+        currencyRepository.deleteById(id);
+    }
     
-    public Dashboard getDashboard(String targetCurrencyName) {
-        Currency targetCurrency = currencyRepository.getCurrencyByName(CurrencyType.valueOf(targetCurrencyName));
+    public Dashboard getDashboard() {
+        Currency targetCurrency = currencyRepository.getCurrencyByName(CurrencyType.EUR);
         if (targetCurrency == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid target currency");
         }
@@ -144,12 +162,12 @@ public class AdminService {
         BigInteger activeUsers = BigInteger.valueOf(userRepository.countByBlockedFalse());
 
         BigDecimal totalBalance = walletRepository.findAll().stream()
-                .map(wallet -> convertToTargetCurrency(wallet.getCurrentValue(), wallet.getCurrency(), targetCurrency))
+                .map(wallet -> convertToTargetCurrency(wallet.getCurrentAmount(), wallet.getCurrency(), targetCurrency))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         BigDecimal activeUserBalance = walletRepository.findAll().stream()
                 .filter(wallet -> !wallet.getUser().getBlocked())
-                .map(wallet -> convertToTargetCurrency(wallet.getCurrentValue(), wallet.getCurrency(), targetCurrency))
+                .map(wallet -> convertToTargetCurrency(wallet.getCurrentAmount(), wallet.getCurrency(), targetCurrency))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         Instant oneMonthAgo = LocalDate.now()
@@ -171,9 +189,10 @@ public class AdminService {
                         .limit(10)
                         .map(t -> TransactionViewDto.builder()
                                 .name(t.getName())
+                                .type(t.getTransactionType())
                                 .date(t.getTransactionDate())
-                                .amount(convertToTarget.apply(t))
-                                .currency(targetCurrency.getName().name())
+                                .amount(t.getAmount())
+                                .currency(t.getCurrency())
                                 .build())
                         .toList();
 
@@ -183,9 +202,10 @@ public class AdminService {
                         .limit(10)
                         .map(t -> TransactionViewDto.builder()
                                 .name(t.getName())
+                                .type(t.getTransactionType())
                                 .date(t.getTransactionDate())
-                                .amount(convertToTarget.apply(t))
-                                .currency(targetCurrency.getName().name())
+                                .amount(t.getAmount())
+                                .currency(t.getCurrency())
                                 .build())
                         .toList();
 

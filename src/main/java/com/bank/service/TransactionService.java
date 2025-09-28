@@ -3,6 +3,7 @@ package com.bank.service;
 import com.bank.model.Currency;
 import com.bank.model.*;
 import com.bank.model.dto.TransactionDTO;
+import com.bank.model.dto.TransactionFullDto;
 import com.bank.model.dto.TransactionOverview;
 import com.bank.model.enums.CurrencyType;
 import com.bank.model.enums.Frequency;
@@ -11,6 +12,7 @@ import com.bank.model.enums.TransactionType;
 import com.bank.model.request.TransactionRequest;
 import com.bank.model.request.TransactionStatisticsRequest;
 import com.bank.repository.*;
+import com.bank.utils.DtoMapper;
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
@@ -42,13 +44,14 @@ public class TransactionService {
 	private final UserRepository userRepository;
 	private final CategoryRepository categoryRepository;
 	private final CurrencyRepository currencyRepository;
+	private final DtoMapper dtoMapper;
 
 	@PostConstruct
 	public void init() {
 		processRecurringTransactions();
 	}
 
-	public Transaction makeTransaction(TransactionRequest request, HttpSession session) {
+	public TransactionFullDto makeTransaction(TransactionRequest request, HttpSession session) {
 		Long userId = (Long) session.getAttribute("USER_ID");
 		Transaction transactionToSave = new Transaction();
 
@@ -83,7 +86,7 @@ public class TransactionService {
 
 			if (resultCategory == null) {
 				resultCategory = Category.builder()
-						.name(request.getName())
+						.name(request.getCategory())
 						.transactionType(request.getType())
 						.creator(USER)
 						.predefined(false)
@@ -98,7 +101,7 @@ public class TransactionService {
 		transactionToSave.setCurrency(currency.getName().name());
 		transactionToSave.setAmount(request.getAmount());
 		transactionToSave.setTransactionType(request.getType());
-		transactionToSave.setTransactionDate(request.getTransactionDate());
+		transactionToSave.setTransactionDate(request.getTransactionDate() != null ? request.getTransactionDate() : Instant.now());
 		transactionToSave.setCategory(resultCategory.getName());
 		transactionToSave.setUser(user);
 
@@ -114,7 +117,7 @@ public class TransactionService {
 
 		transactionRepository.save(transactionToSave);
 
-		return transactionToSave;
+		return dtoMapper.toDto(transactionToSave);
 	}
 
 	public String transferFunds(Long fromWalletId, Long toWalletId, BigDecimal amount, HttpSession session) {
@@ -131,7 +134,7 @@ public class TransactionService {
 			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Destination wallet invalid");
 		}
 
-		if (fromWallet.getCurrentValue().compareTo(amount) < 0) {
+		if (fromWallet.getCurrentAmount().compareTo(amount) < 0) {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Insufficient funds");
 		}
 
@@ -144,8 +147,8 @@ public class TransactionService {
 				.divide(fromRate, 2, RoundingMode.HALF_UP);
 
 		// update balances
-		fromWallet.setCurrentValue(fromWallet.getCurrentValue().subtract(amount));
-		toWallet.setCurrentValue(toWallet.getCurrentValue().add(convertedAmount));
+		fromWallet.setCurrentAmount(fromWallet.getCurrentAmount().subtract(amount));
+		toWallet.setCurrentAmount(toWallet.getCurrentAmount().add(convertedAmount));
 
 		walletRepository.save(fromWallet);
 		walletRepository.save(toWallet);
@@ -153,7 +156,6 @@ public class TransactionService {
 		return convertedAmount + " " + toWallet.getCurrency().getName()
 				+ " transferred from wallet " + fromWalletId + " to wallet " + toWalletId;
 	}
-
 
 	public List<TransactionDTO> getTransactions(Long userId, PeriodType periodType) {
 		return userRepository.findById(userId)
@@ -316,7 +318,7 @@ public class TransactionService {
 	}
 
 	private Wallet updateWalletBalance(BigDecimal convertedAmount, TransactionType type, Wallet wallet) {
-		BigDecimal walletAmount = wallet.getCurrentValue();
+		BigDecimal walletAmount = wallet.getCurrentAmount();
 		BigDecimal newAmount;
 
 		if (type.equals(EXPENSE)) {
@@ -331,7 +333,8 @@ public class TransactionService {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported transaction type");
 		}
 
-		wallet.setCurrentValue(newAmount);
+		wallet.setCurrentAmount(newAmount);
+		wallet.setModified(Instant.now());
 		return walletRepository.save(wallet);
 	}
 
