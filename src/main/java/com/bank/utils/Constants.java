@@ -19,4 +19,10 @@ public class Constants {
 	public static final String USER_ROLE = "USER";
 	public static final String ADMIN_ROLE = "ADMIN";
 
+	//	"email": "adriana.anja@myemail.com",
+	//	"password": "123456"
+
+	//"email": "nina.antic@myemail.com",
+	//"password": "123123"
+
 }

@@ -1,5 +1,5 @@
 package com.bank.model.enums;
 
 public enum CurrencyType {
-	USD, EUR, RSD;
+	USD, EUR, RSD, GBP, JPY
 }

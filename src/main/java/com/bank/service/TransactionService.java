@@ -11,6 +11,7 @@ import com.bank.model.enums.TransactionType;
 import com.bank.model.request.TransactionRequest;
 import com.bank.model.request.TransactionStatisticsRequest;
 import com.bank.repository.*;
+import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -24,10 +25,14 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoField;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
 import static com.bank.model.enums.Role.USER;
+import static com.bank.model.enums.TransactionType.EXPENSE;
+import static com.bank.model.enums.TransactionType.INCOME;
+import static java.util.stream.Collectors.toList;
 
 @Service
 @RequiredArgsConstructor
@@ -38,13 +43,18 @@ public class TransactionService {
 	private final CategoryRepository categoryRepository;
 	private final CurrencyRepository currencyRepository;
 
+	@PostConstruct
+	public void init() {
+		processRecurringTransactions();
+	}
+
 	public Transaction makeTransaction(TransactionRequest request, HttpSession session) {
 		Long userId = (Long) session.getAttribute("USER_ID");
 		Transaction transactionToSave = new Transaction();
 
 		User user = userRepository.getUserById(userId);
-		if(user == null) {
-			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User with id " + userId+ " not found");
+		if (user == null) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User with id " + userId + " not found");
 		}
 
 		Wallet wallet = walletRepository.getWalletById(request.getWalletId());
@@ -56,73 +66,44 @@ public class TransactionService {
 			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User doesnt have a wallet with id " + request.getWalletId());
 		}
 
-		// if it's transfer, check if toWallet and fromWAllet exist and belong to user, set in transaction
-		if (request.getSourceWalletId() != null && request.getDestinationWalletId() != null) {
-			Wallet sourceWallet = walletRepository.getWalletById(request.getSourceWalletId());
-			if (sourceWallet == null) {
-				throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Source wallet with id " + request.getWalletId() + " not found");
-			}
-			if (!Objects.equals(sourceWallet.getUser().getId(), userId)) {
-				throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User doesnt have a wallet with id " + request.getSourceWalletId());
-			}
-
-			Wallet destinationWallet = walletRepository.getWalletById(request.getDestinationWalletId());
-			if (destinationWallet == null) {
-				throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Destination wallet with id " + request.getWalletId() + " not found");
-			}
-			if (!Objects.equals(destinationWallet.getUser().getId(), userId)) {
-				throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User doesnt have a wallet with id " + request.getDestinationWalletId());
-			}
-
-			transactionToSave.setSourceWallet(sourceWallet);
-			transactionToSave.setDestinationWallet(destinationWallet);
-		}
-
 		Currency currency = currencyRepository.getCurrencyByName(CurrencyType.valueOf(request.getCurrency()));
-		if (currency == null) {
-			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Transaction with currency " + request.getCurrency() + " is not allowed");
-		}
-
+		BigDecimal amountInWalletCurrency = request.getAmount();
 		if (wallet.getCurrency().getId() != currency.getId()) {
-			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Wallet does not support " + currency.getName() + "transactions");
+			BigDecimal fromRate = currency.getCurrencyValue();
+			BigDecimal toRate = wallet.getCurrency().getCurrencyValue();
+			amountInWalletCurrency = request.getAmount()
+					.multiply(toRate)
+					.divide(fromRate, 2, RoundingMode.HALF_UP);
 		}
 
 		Category resultCategory = categoryRepository.findByNameAndTransactionTypeAndPredefinedTrue(request.getCategory(), request.getType());
 
 		if (resultCategory == null) {
-            resultCategory = categoryRepository.findByUserIdAndNameAndTransactionType(userId, request.getName(), request.getType());
+			resultCategory = categoryRepository.findByUserIdAndNameAndTransactionType(userId, request.getName(), request.getType());
 
 			if (resultCategory == null) {
 				resultCategory = Category.builder()
-					.name(request.getName())
-					.transactionType(request.getType())
-					.creator(USER)
-					.predefined(false)
-					.userId(userId)
-					.build();
+						.name(request.getName())
+						.transactionType(request.getType())
+						.creator(USER)
+						.predefined(false)
+						.userId(userId)
+						.build();
 
 				categoryRepository.save(resultCategory);
 			}
 		}
 
-		BigDecimal resultAmount = null;
-		if (wallet.getCurrentValue().compareTo(request.getAmount()) >= 0) {
-			resultAmount = wallet.getCurrentValue().subtract(request.getAmount());
-		} else if (wallet.getCurrentValue().compareTo(request.getAmount()) <= 0) {
-			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Wallet doesn't have enough balance");
-		}
-
-		wallet.setCurrentValue(resultAmount);
-		walletRepository.save(wallet);
-
 		transactionToSave.setName(request.getName());
-		transactionToSave.setCurrency(request.getCurrency());
+		transactionToSave.setCurrency(currency.getName().name());
 		transactionToSave.setAmount(request.getAmount());
 		transactionToSave.setTransactionType(request.getType());
 		transactionToSave.setTransactionDate(request.getTransactionDate());
 		transactionToSave.setCategory(resultCategory.getName());
 		transactionToSave.setUser(user);
-	    transactionToSave.setWallet(wallet);
+
+		Wallet updatedWallet = updateWalletBalance(amountInWalletCurrency, transactionToSave.getTransactionType(), wallet);
+		transactionToSave.setWallet(updatedWallet);
 
 		if (request.getRecurring() && request.getFrequency() != null) {
 			transactionToSave.setRecurring(true);
@@ -130,58 +111,49 @@ public class TransactionService {
 		} else {
 			transactionToSave.setRecurring(false);
 		}
-		
+
 		transactionRepository.save(transactionToSave);
 
 		return transactionToSave;
 	}
-	
+
 	public String transferFunds(Long fromWalletId, Long toWalletId, BigDecimal amount, HttpSession session) {
-		Object userId = session.getAttribute("USER_ID");
+		Long userId = (Long) session.getAttribute("USER_ID");
 
 		Wallet fromWallet = walletRepository.getWalletById(fromWalletId);
-		if(fromWallet == null) {
-			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Source wallet not found");
-		}
-
-		if (!userId.equals(fromWallet.getUser().getId())) {
-			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Source wallet doesn't belong to logged in user");
-		}
-
 		Wallet toWallet = walletRepository.getWalletById(toWalletId);
-		if (toWallet == null) {
-			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Destination wallet not found");
+
+		// existence + ownership checks
+		if (fromWallet == null || !userId.equals(fromWallet.getUser().getId())) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Source wallet invalid");
+		}
+		if (toWallet == null || !userId.equals(toWallet.getUser().getId())) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Destination wallet invalid");
 		}
 
-		if (!userId.equals(toWallet.getUser().getId())) {
-			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Destination wallet doesn't belong to logged in user");
-		}
-		
-		BigDecimal value = fromWallet.getCurrentValue();
-		if(value.compareTo(amount) < 0) {
+		if (fromWallet.getCurrentValue().compareTo(amount) < 0) {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Insufficient funds");
 		}
-		
-		Currency fromCurrency = fromWallet.getCurrency();
-		Currency toCurrency = toWallet.getCurrency();
-		
-		BigDecimal convertedAmount = amount;
-		if(!fromCurrency.equals(toCurrency)){
-			BigDecimal fromRate = fromCurrency.getCurrencyValue();
-			BigDecimal toRate = toCurrency.getCurrencyValue();
-			
-			BigDecimal amountInBase = amount.multiply(fromRate);
-			
-			convertedAmount = amountInBase.divide(toRate, 2, RoundingMode.HALF_UP);
-		}
-		
+
+		// currency conversion: from → to
+		BigDecimal fromRate = fromWallet.getCurrency().getCurrencyValue();
+		BigDecimal toRate = toWallet.getCurrency().getCurrencyValue();
+
+		BigDecimal convertedAmount = amount
+				.multiply(toRate)
+				.divide(fromRate, 2, RoundingMode.HALF_UP);
+
+		// update balances
 		fromWallet.setCurrentValue(fromWallet.getCurrentValue().subtract(amount));
 		toWallet.setCurrentValue(toWallet.getCurrentValue().add(convertedAmount));
+
 		walletRepository.save(fromWallet);
 		walletRepository.save(toWallet);
 
-		return convertedAmount + " transferred from " + fromWallet.getId() + " to " + toWallet.getId();
+		return convertedAmount + " " + toWallet.getCurrency().getName()
+				+ " transferred from wallet " + fromWalletId + " to wallet " + toWalletId;
 	}
+
 
 	public List<TransactionDTO> getTransactions(Long userId, PeriodType periodType) {
 		return userRepository.findById(userId)
@@ -191,7 +163,7 @@ public class TransactionService {
 				.collect(Collectors.groupingBy(
 						tx -> getPeriodStart(tx.getTransactionDate(), periodType),
 						TreeMap::new,
-						Collectors.toList()
+						toList()
 				))
 				.entrySet()
 				.stream()
@@ -209,64 +181,78 @@ public class TransactionService {
 				.toList();
 	}
 
-
 	public TransactionOverview getStatisticsForTimePeriod(TransactionStatisticsRequest request) {
 		Long userId = request.getUserId();
-		Instant start;
-		Instant end;
+		Instant start = request.getStartDate() != null ? request.getStartDate() : userRepository.getUserById(userId).getCreated();
+		Instant end = request.getEndDate() != null ? request.getEndDate() : Instant.now();
 
 		User user = userRepository.getUserById(userId);
 		if (user == null) {
 			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Customer with id " + userId + " not found");
 		}
 
-		start = request.getStartDate() != null ?
-				request.getStartDate() :
-				user.getCreated();
-
-		end = request.getEndDate() != null ?
-				request.getEndDate() :
-				Instant.now();
-
 		List<Transaction> transactions = transactionRepository.findByUserIdAndTransactionDateBetween(userId, start, end);
 		if (transactions.isEmpty()) {
 			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No transactions found");
 		}
 
-		BigDecimal incomeSum = BigDecimal.valueOf(0.0);
-		BigDecimal expenseSum = BigDecimal.valueOf(0.0);
 
-		Map<String, BigDecimal> categoriesDisplay = new HashMap<>();// a map of categories and expenses for each
-		Map<String, BigDecimal> topTenExpenses = new HashMap<>();
+		Currency targetCurrency = currencyRepository.getCurrencyByName(CurrencyType.valueOf(request.getCurrency()));
+		if (targetCurrency == null) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid target currency");
+		}
+
+		BigDecimal incomeSum = BigDecimal.ZERO;
+		BigDecimal expenseSum = BigDecimal.ZERO;
+
+		Map<String, BigDecimal> categoriesDisplay = new HashMap<>();
 		List<Transaction> expenseTransactions = new ArrayList<>();
 
 		for (Transaction transaction : transactions) {
+			BigDecimal amount = transaction.getAmount();
+			if (amount == null) continue;
+
+			Currency transactionCurrency = currencyRepository.getCurrencyByName(
+					CurrencyType.valueOf(transaction.getCurrency())
+			);
+
+			BigDecimal fromRate = transactionCurrency.getCurrencyValue();
+			BigDecimal toRate = targetCurrency.getCurrencyValue();
+			BigDecimal convertedAmount = amount.multiply(toRate).divide(fromRate, 2, RoundingMode.HALF_UP);
+
 			String categoryName = transaction.getCategory();
 
-			if (transaction.getTransactionType() == TransactionType.INCOME) {
-				if (transaction.getAmount()!= null)
-					incomeSum = incomeSum.add(transaction.getAmount());
+			if (transaction.getTransactionType() == INCOME) {
+				incomeSum = incomeSum.add(convertedAmount);
+			} else if (transaction.getTransactionType() == EXPENSE) {
+				expenseSum = expenseSum.add(convertedAmount);
+				expenseTransactions.add(transaction);
 			}
 
-			if (transaction.getTransactionType() == TransactionType.EXPENSE) {
-				if (transaction.getAmount()!= null) {
-					expenseSum = expenseSum.add(transaction.getAmount());
-					expenseTransactions.add(transaction);
-				}
-			}
-
-			if (categoriesDisplay.containsKey(categoryName)) {
-				categoriesDisplay.put(categoryName, categoriesDisplay.get(categoryName).add(transaction.getAmount()));
-			} else {
-				categoriesDisplay.put(categoryName, transaction.getAmount());
-			}
+			categoriesDisplay.merge(categoryName, convertedAmount, BigDecimal::add);
 		}
 
-		// sort expenses by amount desc and take top 10
-		expenseTransactions.stream()
-				.sorted((t1, t2) -> t2.getAmount().compareTo(t1.getAmount()))
+		List<Map.Entry<String, BigDecimal>> topTenExpenses = expenseTransactions.stream()
+				.sorted((t1, t2) -> {
+					Currency c1 = currencyRepository.getCurrencyByName(CurrencyType.valueOf(t1.getCurrency()));
+					Currency c2 = currencyRepository.getCurrencyByName(CurrencyType.valueOf(t2.getCurrency()));
+
+					BigDecimal a1 = t1.getAmount().multiply(targetCurrency.getCurrencyValue())
+							.divide(c1.getCurrencyValue(), 2, RoundingMode.HALF_UP);
+					BigDecimal a2 = t2.getAmount().multiply(targetCurrency.getCurrencyValue())
+							.divide(c2.getCurrencyValue(), 2, RoundingMode.HALF_UP);
+
+					return a2.compareTo(a1);
+				})
 				.limit(10)
-				.forEach(t -> topTenExpenses.put(t.getName(), t.getAmount()));
+				.map(t -> {
+					Currency c = currencyRepository.getCurrencyByName(CurrencyType.valueOf(t.getCurrency()));
+					BigDecimal converted = t.getAmount().multiply(targetCurrency.getCurrencyValue())
+							.divide(c.getCurrencyValue(), 2, RoundingMode.HALF_UP);
+
+					return Map.entry(t.getId() + " - " + t.getName(), converted);
+				})
+				.collect(Collectors.toList());
 
 		return TransactionOverview.builder()
 				.income(incomeSum)
@@ -302,68 +288,96 @@ public class TransactionService {
 					.toInstant();
 		};
 	}
-	private Date calculateNextDate(Date date, Frequency frequency) {
-	    Calendar cal = Calendar.getInstance();
-	    cal.setTime(date);
-	    switch (frequency) {
-	        case WEEKLY:
-	            cal.add(Calendar.WEEK_OF_YEAR, 1);
-	            break;
-	        case MONTHLY:
-	            cal.add(Calendar.MONTH, 1);
-	            break;
-	        default:
-	            throw new IllegalArgumentException("Unsupported frequency: " + frequency);
-	    }
-	    return cal.getTime();
+
+	private Instant calculateNextDate(Instant date, Frequency frequency) {
+        return switch (frequency) {
+            case DAILY -> date.plus(1, ChronoUnit.DAYS);
+            case WEEKLY -> date.plus(1, ChronoUnit.WEEKS);
+            case MONTHLY -> date.plus(1, ChronoUnit.MONTHS);
+        };
 	}
 
-	
+
 	public void disableRecurring(Long transactionId, HttpSession session) {
-	    Optional<Transaction> optionalTransaction = transactionRepository.findById(transactionId);
-	    if(optionalTransaction.isPresent()) {
-	        Transaction t = optionalTransaction.get();
+		Optional<Transaction> optionalTransaction = transactionRepository.findById(transactionId);
+		if (optionalTransaction.isPresent()) {
+			Transaction t = optionalTransaction.get();
 
 			if (!t.getUser().getId().equals(session.getAttribute("USER_ID"))) {
 				throw new RuntimeException("Access denied");
 			}
 
-	        t.setRecurring(false);
-	        t.setFrequency(null);
-	        transactionRepository.save(t);
-	    } else {
-	        throw new RuntimeException("Transaction not found");
-	    }
+			t.setRecurring(false);
+			t.setFrequency(null);
+			transactionRepository.save(t);
+		} else {
+			throw new RuntimeException("Transaction not found");
+		}
 	}
 
+	private Wallet updateWalletBalance(BigDecimal convertedAmount, TransactionType type, Wallet wallet) {
+		BigDecimal walletAmount = wallet.getCurrentValue();
+		BigDecimal newAmount;
 
+		if (type.equals(EXPENSE)) {
+			newAmount = walletAmount.subtract(convertedAmount);
+			if (newAmount.compareTo(BigDecimal.ZERO) < 0) {
+				throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+						"Insufficient funds in the wallet: " + wallet.getName());
+			}
+		} else if (type.equals(INCOME)) {
+			newAmount = walletAmount.add(convertedAmount);
+		} else {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported transaction type");
+		}
 
+		wallet.setCurrentValue(newAmount);
+		return walletRepository.save(wallet);
+	}
 
+	public void processRecurringTransactions() {
+		List<Transaction> recurringTransactions = transactionRepository.findByRecurringTrue();
 
-//	public void processRecurringTransactions() {
-//		List<Transaction> recurringTransactions = transactionRepository.findByRecurringTrue();
-//
-//		Date now = new Date();
-//
-//		for (Transaction t : recurringTransactions) {
-//			Date nextDate = calculateNextDate(t.getTransactionDate(), t.getFrequency());
-//			if (!nextDate.after(now)) {
-//				Transaction newTransaction = new Transaction();
-//				newTransaction.setName(t.getName());
-//				newTransaction.setAmount(t.getAmount());
-//				newTransaction.setTransactionType(t.getTransactionType());
-//				newTransaction.setCategory(t.getCategory());
-//				newTransaction.setUser(t.getUser());
-//				newTransaction.setWallet(t.getWallet());
-//				newTransaction.setRecurring(true);
-//				newTransaction.setFrequency(t.getFrequency());
-//				newTransaction.setTransactionDate(nextDate);
-//
-//				transactionRepository.save(newTransaction);
-//
-//				t.setTransactionDate(nextDate);
-//				transactionRepository.save(t);
-//			}
-//		}
-//	}
+		Instant now = Instant.now();
+		List<Transaction> transactionsToSave = new ArrayList<>();
+
+		for (Transaction t : recurringTransactions) {
+			if (t.getFrequency() != null) {
+				Instant lastProcessed = t.getTransactionDate();
+				Instant nextDate = calculateNextDate(lastProcessed, t.getFrequency());
+
+				while (!nextDate.isAfter(now)) {
+					Transaction newTransaction = new Transaction();
+					newTransaction.setName(t.getName());
+					newTransaction.setCurrency(t.getCurrency());
+					newTransaction.setAmount(t.getAmount());
+					newTransaction.setTransactionType(t.getTransactionType());
+					newTransaction.setCategory(t.getCategory());
+					newTransaction.setUser(t.getUser());
+					newTransaction.setWallet(t.getWallet());
+					newTransaction.setRecurring(true);
+					newTransaction.setFrequency(t.getFrequency());
+					newTransaction.setTransactionDate(nextDate);
+
+					updateWalletBalance(
+							newTransaction.getAmount(),
+							newTransaction.getTransactionType(),
+							t.getWallet());
+
+					transactionsToSave.add(newTransaction);
+
+					lastProcessed = nextDate;
+					nextDate = calculateNextDate(lastProcessed, t.getFrequency());
+				}
+
+				if (!transactionsToSave.isEmpty()) {
+					transactionRepository.saveAll(transactionsToSave);
+
+					t.setTransactionDate(lastProcessed);
+					transactionRepository.save(t);
+				}
+			}
+		}
+	}
+
 }

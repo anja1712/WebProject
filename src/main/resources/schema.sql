@@ -41,6 +41,9 @@ ALTER SEQUENCE bank.seq_category OWNER TO bank007;
 CREATE SEQUENCE IF NOT EXISTS bank.seq_transaction START 1000;
 ALTER SEQUENCE bank.seq_transaction OWNER TO bank007;
 
+CREATE SEQUENCE IF NOT EXISTS bank.seq_goal START 1000;
+ALTER SEQUENCE bank.seq_goal OWNER TO bank007;
+
 -- Create user table
 CREATE TABLE IF NOT EXISTS bank.user (
    id bigint NOT NULL DEFAULT nextval('bank.seq_user'::regclass),
@@ -187,3 +190,19 @@ CREATE TABLE IF NOT EXISTS bank.transaction (
 );
 ALTER TABLE bank.transaction OWNER TO bank007;
 GRANT ALL ON TABLE bank.transaction TO bank007;
+
+CREATE TABLE IF NOT EXISTS bank.goal (
+    id bigint NOT NULL DEFAULT nextval('bank.seq_goal'::regclass),
+    version integer NOT NULL DEFAULT 0,
+    created timestamptz NOT NULL,
+    modified timestamptz,
+    name VARCHAR(255) NOT NULL,
+    user_id bigint NOT NULL,
+    current_amount NUMERIC(19, 2) NOT NULL,
+    goal_amount NUMERIC(19, 2) NOT NULL,
+    start_date timestamptz NOT NULL DEFAULT NOW(),
+    target_date timestamptz NOT NULL,
+    wallet_id bigint NOT NULL,
+    CONSTRAINT fk_goal_user FOREIGN KEY (user_id) REFERENCES bank.user(id),
+    CONSTRAINT fk_goal_wallet FOREIGN KEY (wallet_id) REFERENCES bank.wallet(id)
+);

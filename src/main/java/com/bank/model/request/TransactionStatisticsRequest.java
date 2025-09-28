@@ -15,4 +15,5 @@ public class TransactionStatisticsRequest {
     private Long userId;
     private Instant startDate;
     private Instant endDate;
+    private String currency;
 }

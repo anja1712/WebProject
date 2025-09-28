@@ -19,51 +19,50 @@ import java.util.List;
 @RequestMapping("/transactions")
 @RequiredArgsConstructor
 public class TransactionController {
-	
 	private final TransactionService transactionService;
 	
-	 @PostMapping("/make")
-	 public Transaction makeTransaction(@RequestBody TransactionRequest transactionRequest, HttpSession session) {
-		 return transactionService.makeTransaction(transactionRequest, session);
-	 }
+	@PostMapping("/make")
+	public Transaction makeTransaction(@RequestBody TransactionRequest transactionRequest, HttpSession session) {
+	 return transactionService.makeTransaction(transactionRequest, session);
+	}
 
-	 @GetMapping("/grouped")
-	    public List<TransactionDTO> getTransactions(
-	            @RequestParam Long userId,
-	            @RequestParam PeriodType periodType,
-				HttpSession session
-	    ) {
-		 	checkAccess(userId, session);
-	        return transactionService.getTransactions(userId, periodType);
-	    }
-	 
-	 @PostMapping("/transfer")
-	 public String transferFunds(@RequestBody TransactionRequest transactionRequest, HttpSession session) {
-	     return transactionService.transferFunds(
-				 transactionRequest.getSourceWalletId(),
-				 transactionRequest.getDestinationWalletId(),
-				 transactionRequest.getAmount(),
-				 session
-		 );
-	 }
-	 
-	 @PutMapping("/{id}/disableRecurring")
-	 public String disableRecurring(@PathVariable Long id, HttpSession session) {
-	     transactionService.disableRecurring(id, session);
-	     return "Recurring disabled for transaction " + id;
-	 }
+	@GetMapping("/grouped")
+	public List<TransactionDTO> getTransactions(
+			@RequestParam Long userId,
+			@RequestParam PeriodType periodType,
+			HttpSession session
+		) {
+				checkAccess(userId, session);
+				return transactionService.getTransactions(userId, periodType);
+	}
 
-	 @GetMapping("/statistics")
-	 public TransactionOverview getStatisticsForTimePeriod(@RequestBody TransactionStatisticsRequest transactionStatisticsRequest,
-														   HttpSession session) {
-		 checkAccess(transactionStatisticsRequest.getUserId(), session);
-		 return transactionService.getStatisticsForTimePeriod(transactionStatisticsRequest);
-	 }
+	@PostMapping("/transfer")
+	public String transferFunds(@RequestBody TransactionRequest transactionRequest, HttpSession session) {
+	return transactionService.transferFunds(
+			 transactionRequest.getSourceWalletId(),
+			 transactionRequest.getDestinationWalletId(),
+			 transactionRequest.getAmount(),
+			 session
+		);
+	}
 
-	 private void checkAccess(Long userId, HttpSession session) {
-		 Object currentUserId = session.getAttribute("USER_ID");
-		 if (!currentUserId.equals(userId)) {
-			 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
-		 }
-	 }
+	@PutMapping("/{id}/disableRecurring")
+	public String disableRecurring(@PathVariable Long id, HttpSession session) {
+		transactionService.disableRecurring(id, session);
+		return "Recurring disabled for transaction " + id;
+	}
+
+	@GetMapping("/statistics")
+	public TransactionOverview getStatisticsForTimePeriod(@RequestBody TransactionStatisticsRequest transactionStatisticsRequest,
+												   HttpSession session) {
+		checkAccess(transactionStatisticsRequest.getUserId(), session);
+		return transactionService.getStatisticsForTimePeriod(transactionStatisticsRequest);
+	}
+
+	private void checkAccess(Long userId, HttpSession session) {
+		Object currentUserId = session.getAttribute("USER_ID");
+		if (!currentUserId.equals(userId)) {
+	 		throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
+		}
+	}
 }

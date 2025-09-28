@@ -1,6 +1,5 @@
 package com.bank.model.dto;
 
-import com.bank.model.Transaction;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -17,6 +16,6 @@ public class Dashboard {
     private BigInteger activeUsers;
     private BigDecimal activeUserBalance;
     private BigDecimal totalBalance;
-    private List<Transaction> topTenMonthlyTransactions;
-    private List<Transaction> topTenTwoMinutesTransactions;
+    private List<TransactionViewDto> topTenMonthlyTransactions;
+    private List<TransactionViewDto> topTenTwoMinutesTransactions;
 }
