@@ -6,7 +6,7 @@ import com.bank.model.dto.UserDto;
 import com.bank.model.enums.TransactionType;
 import com.bank.model.request.UserRequest;
 import com.bank.service.UserService;
-import jakarta.servlet.http.HttpSession;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -24,7 +24,7 @@ public class UserController {
     private final UserService userService;
 
     @PostMapping("/create")
-    public User createUser(@RequestBody UserRequest request, HttpSession session) {
+    public User createUser(@RequestBody UserRequest request, HttpServletRequest session) {
         if (session.getAttribute("ROLE") != ADMIN) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Admin access required");
         }
@@ -32,7 +32,7 @@ public class UserController {
     }
 
     @PutMapping("/{id}/update")
-    public UserDto updateUser(@PathVariable("id") Long id, @RequestBody User update, HttpSession session) {
+    public UserDto updateUser(@PathVariable("id") Long id, @RequestBody User update, HttpServletRequest session) {
         Object role = session.getAttribute("ROLE");
         Object currentUserId = session.getAttribute("USER_ID");
 
@@ -46,7 +46,7 @@ public class UserController {
     }
 
     @GetMapping("/{id}")
-    public User getUser(@PathVariable("id") Long id, HttpSession session) {
+    public User getUser(@PathVariable("id") Long id, HttpServletRequest session) {
         Object role = session.getAttribute("ROLE");
         Object currentUserId = session.getAttribute("USER_ID");
 
@@ -73,12 +73,12 @@ public class UserController {
     }
 
     @PostMapping("categories/add")
-    public CategoryViewDto addCategory(@RequestParam String name, @RequestParam TransactionType type, HttpSession session) {
+    public CategoryViewDto addCategory(@RequestParam String name, @RequestParam TransactionType type, HttpServletRequest session) {
         return userService.addCategory(name, type, session);
     }
 
     @GetMapping("/categories")
-    public List<CategoryViewDto> getUserCategories(@RequestParam boolean onlyMy, HttpSession session) {
+    public List<CategoryViewDto> getUserCategories(@RequestParam boolean onlyMy, HttpServletRequest session) {
        return userService.getUserCategories(onlyMy, session);
     }
 }

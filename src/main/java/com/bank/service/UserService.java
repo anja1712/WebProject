@@ -9,7 +9,7 @@ import com.bank.model.request.UserRequest;
 import com.bank.repository.CategoryRepository;
 import com.bank.repository.UserRepository;
 import com.bank.utils.DtoMapper;
-import jakarta.servlet.http.HttpSession;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -76,7 +76,7 @@ public class UserService {
     }
 
 
-    public CategoryViewDto addCategory(String name, TransactionType type, HttpSession session) {
+    public CategoryViewDto addCategory(String name, TransactionType type, HttpServletRequest session) {
         Long userId = (Long) session.getAttribute("USER_ID");
 
         Category predefined = categoryRepository.findByNameAndTransactionTypeAndPredefinedTrue(name, type);
@@ -100,7 +100,7 @@ public class UserService {
         return new CategoryViewDto(newCategory.getName(), newCategory.getTransactionType());
     }
 
-    public List<CategoryViewDto> getUserCategories(boolean onlyMy, HttpSession session) {
+    public List<CategoryViewDto> getUserCategories(boolean onlyMy, HttpServletRequest session) {
         Long userId = (Long) session.getAttribute("USER_ID");
 
         List<Category> categories = categoryRepository.findByUserId(userId);
