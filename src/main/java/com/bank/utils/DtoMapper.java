@@ -18,6 +18,7 @@ import org.mapstruct.Mapping;
 @Mapper(componentModel = MappingConstants.ComponentModel.SPRING, unmappedTargetPolicy = ReportingPolicy.IGNORE)
 public interface DtoMapper {
 
+    @Mapping(target = "role", source = "role")
     UserDto toDto(User user);
 
     @Mapping(target = "userId", source = "user.id")

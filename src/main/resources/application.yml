@@ -71,3 +71,5 @@ endpoints:
     shutdown:
         sensitive: false
         enabled: true
+
+limit: 20

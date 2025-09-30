@@ -1,15 +1,13 @@
 package com.bank.service;
 
 import com.bank.model.*;
-import com.bank.model.dto.GoalDto;
 import com.bank.model.dto.TransactionViewDto;
 import com.bank.model.dto.WalletDto;
 import com.bank.model.enums.CurrencyType;
-import com.bank.model.request.GoalRequest;
 import com.bank.model.request.WalletRequest;
 import com.bank.repository.*;
 import com.bank.utils.DtoMapper;
-import jakarta.servlet.http.HttpSession;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -59,7 +57,7 @@ public class WalletService {
     }
 
     @Transactional
-    public WalletDto updateWallet(Long id, WalletRequest request, HttpSession session) {
+    public WalletDto updateWallet(Long id, WalletRequest request, HttpServletRequest session) {
         Long userId = (Long) session.getAttribute("USER_ID");
 
         Wallet wallet = walletRepository.getWalletById(id);
@@ -105,7 +103,7 @@ public class WalletService {
         return wallets.stream().map(dtoMapper::toDto).toList();
     }
 
-    public WalletDto getWallet(Long id, HttpSession session) {
+    public WalletDto getWallet(Long id, HttpServletRequest session) {
         Long userId = (Long) session.getAttribute("USER_ID");
         Wallet wallet = walletRepository.getWalletById(id);
 
@@ -116,7 +114,7 @@ public class WalletService {
         return dtoMapper.toDto(wallet);
     }
 
-    public WalletDto archiveWallet(Long id, HttpSession session) {
+    public WalletDto archiveWallet(Long id, HttpServletRequest session) {
         Long userId = (Long) session.getAttribute("USER_ID");
         Wallet wallet = walletRepository.getWalletById(id);
         if (wallet == null || !Objects.equals(wallet.getUser().getId(), userId)) {
@@ -129,7 +127,7 @@ public class WalletService {
         return dtoMapper.toDto(wallet);
     }
 
-    public WalletDto unarchiveWallet(Long id, HttpSession session) {
+    public WalletDto unarchiveWallet(Long id, HttpServletRequest session) {
         Long userId = (Long) session.getAttribute("USER_ID");
         Wallet wallet = walletRepository.getWalletById(id);
         if (wallet == null || !Objects.equals(wallet.getUser().getId(), userId)) {
@@ -142,19 +140,19 @@ public class WalletService {
         return dtoMapper.toDto(wallet);
     }
 
-    public void deleteWallet(Long id, HttpSession session) {
+    public void deleteWallet(Long id, HttpServletRequest session) {
         Long userId = (Long) session.getAttribute("USER_ID");
         Wallet wallet = walletRepository.getWalletById(id);
         if (wallet == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Wallet with id " + id + " not found");
         }
         if (!Objects.equals(wallet.getUser().getId(), userId)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User doen't have wallet with id: " + id);
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User doesn't have wallet with id: " + id);
         }
         walletRepository.deleteById(id);
     }
 
-    public List<TransactionViewDto> getWalletTransactions(Long walletId, HttpSession session) {
+    public List<TransactionViewDto> getWalletTransactions(Long walletId, HttpServletRequest session) {
         Long userId = (Long) session.getAttribute("USER_ID");
 
         Wallet wallet = walletRepository.getWalletById(walletId);
@@ -176,34 +174,5 @@ public class WalletService {
                         .build()
                 )
                 .toList();
-    }
-
-    public GoalDto createGoal(GoalRequest goalRequest, HttpSession session) {
-        Long userId = (Long) session.getAttribute("USER_ID");
-        Wallet wallet = walletRepository.getWalletById(goalRequest.getWalletId());
-        if (wallet == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Wallet with id " + goalRequest.getWalletId() + " not found");
-        }
-
-        if (!wallet.getUser().getId().equals(userId)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User doesn't belong to user");
-        }
-
-        if (!wallet.getSavings()) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Need to select savings wallet");
-        }
-
-        Goal goal = new Goal();
-        goal.setName(goalRequest.getName());
-        goal.setCurrentAmount(wallet.getCurrentAmount());
-        goal.setGoalAmount(goalRequest.getGoalAmount());
-        goal.setWallet(wallet);
-        goal.setUser(userRepository.findById(userId).get());
-        goal.setStartDate(Instant.now());
-        goal.setTargetDate(goalRequest.getTargetDate());
-
-        goalRepository.save(goal);
-
-        return dtoMapper.toDto(goal);
     }
 }

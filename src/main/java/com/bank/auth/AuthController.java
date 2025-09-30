@@ -5,6 +5,7 @@ import com.bank.model.enums.Role;
 import com.bank.model.request.UserRequest;
 import com.bank.repository.UserRepository;
 import com.bank.utils.DtoMapper;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -14,6 +15,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/auth")
@@ -22,6 +25,7 @@ public class AuthController {
 	private final UserRepository userRepository;
     private final DtoMapper dtoMapper;
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+    private final JwtUtil jwtUtil;
 
 
 	@PostMapping("/signup")
@@ -35,7 +39,7 @@ public class AuthController {
 		User user = new User();
 		user.setEmail(userRequest.getEmail());
 		user.setPassword(passwordEncoder.encode(userRequest.getPassword()));
-		user.setRole(Role.valueOf(role.toUpperCase()));
+		user.setRole(Role.USER);
 		user.setUserName(userRequest.getUserName());
 		user.setFirstName(userRequest.getFirstName());
 		user.setLastName(userRequest.getLastName());
@@ -47,25 +51,24 @@ public class AuthController {
 
 		userRepository.save(user);
 
-		session.setAttribute("USER_ID", user.getId());
-		session.setAttribute("USER_NAME", user.getUserName());
-		session.setAttribute("ROLE", user.getRole());
+        String token = jwtUtil.generateToken(user.getId(), user.getRole().toString(), user.getUserName());
 
-		return ResponseEntity.ok(dtoMapper.toDto(user));
+        Map<String, Object> response = new HashMap<>();
+        response.put("user", dtoMapper.toDto(user));
+        response.put("token", token);
+
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestParam String email,
-                                        @RequestParam String password,
-                                        HttpSession session) {
-
-        User user = userRepository.findByEmail(email);
+    public ResponseEntity<?> login(@RequestBody UserRequest userRequest) {
+        User user = userRepository.findByEmail(userRequest.getEmail());
 
         if (user == null) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body("Invalid email");
         }
 
-        if(!passwordEncoder.matches(password, user.getPassword())) {
+        if(!passwordEncoder.matches(userRequest.getPassword(), user.getPassword())) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid password");
         }
 
@@ -73,29 +76,29 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body("User is blocked");
         }
 
-        session.setAttribute("USER_ID", user.getId());
-        session.setAttribute("ROLE", user.getRole());
-        session.setAttribute("USER_NAME", user.getUserName());
+        String token = jwtUtil.generateToken(user.getId(), user.getRole().toString(), user.getUserName());
 
-        return ResponseEntity.ok(dtoMapper.toDto(user));
+        Map<String, Object> response = new HashMap<>();
+        response.put("user", dtoMapper.toDto(user));
+        response.put("token", token);
+
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/me")
-    public ResponseEntity<?> me(HttpSession session) {
-        Object userId = session.getAttribute("USER_ID");
+    public ResponseEntity<?> me(HttpServletRequest request) {
+        Object userId = request.getAttribute("USER_ID");
 
         if (userId == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not signed in");
         }
 
         User user = userRepository.getUserById((Long) userId);
-
         return ResponseEntity.ok(dtoMapper.toDto(user));
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<String> logout(HttpSession session) {
-        session.invalidate();
+    public ResponseEntity<String> logout() {
         return ResponseEntity.ok("Logged out");
     }
 }

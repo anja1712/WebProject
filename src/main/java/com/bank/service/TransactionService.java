@@ -14,8 +14,10 @@ import com.bank.model.request.TransactionStatisticsRequest;
 import com.bank.repository.*;
 import com.bank.utils.DtoMapper;
 import jakarta.annotation.PostConstruct;
-import jakarta.servlet.http.HttpSession;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -51,7 +53,7 @@ public class TransactionService {
 		processRecurringTransactions();
 	}
 
-	public TransactionFullDto makeTransaction(TransactionRequest request, HttpSession session) {
+	public TransactionFullDto makeTransaction(TransactionRequest request, HttpServletRequest session) {
 		Long userId = (Long) session.getAttribute("USER_ID");
 		Transaction transactionToSave = new Transaction();
 
@@ -120,7 +122,36 @@ public class TransactionService {
 		return dtoMapper.toDto(transactionToSave);
 	}
 
-	public String transferFunds(Long fromWalletId, Long toWalletId, BigDecimal amount, HttpSession session) {
+	public List<TransactionFullDto> getWalletTransactions(Long walletId, HttpServletRequest session) {
+		Long userId = (Long) session.getAttribute("USER_ID");
+		Wallet wallet = walletRepository.getWalletById(walletId);
+		if (wallet == null) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Wallet with id " + walletId + " not found");
+		}
+
+		if (!userId.equals(wallet.getUser().getId())) {
+			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User doesnt have a wallet with id " + walletId);
+		}
+
+		List<Transaction> transactions = transactionRepository.getTransactionsByWalletId(walletId);
+		List<TransactionFullDto> resultList = new ArrayList<>();
+ 		if (!transactions.isEmpty()) {
+			resultList = transactions.stream().map(dtoMapper::toDto).toList();
+		}
+
+		 return resultList;
+	}
+
+	public List<TransactionFullDto> getUsersLastTransactions(Long userId, int limit) {
+		Pageable pageable = PageRequest.of(0, limit);
+		List<Transaction> transactions = transactionRepository.findLastTransactionsByCustomerId(userId, pageable);
+
+		return transactions.stream()
+				.map(dtoMapper::toDto)
+				.collect(Collectors.toList());
+	}
+
+	public String transferFunds(Long fromWalletId, Long toWalletId, BigDecimal amount, HttpServletRequest session) {
 		Long userId = (Long) session.getAttribute("USER_ID");
 
 		Wallet fromWallet = walletRepository.getWalletById(fromWalletId);
@@ -138,7 +169,6 @@ public class TransactionService {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Insufficient funds");
 		}
 
-		// currency conversion: from → to
 		BigDecimal fromRate = fromWallet.getCurrency().getCurrencyValue();
 		BigDecimal toRate = toWallet.getCurrency().getCurrencyValue();
 
@@ -146,7 +176,6 @@ public class TransactionService {
 				.multiply(toRate)
 				.divide(fromRate, 2, RoundingMode.HALF_UP);
 
-		// update balances
 		fromWallet.setCurrentAmount(fromWallet.getCurrentAmount().subtract(amount));
 		toWallet.setCurrentAmount(toWallet.getCurrentAmount().add(convertedAmount));
 
@@ -300,7 +329,7 @@ public class TransactionService {
 	}
 
 
-	public void disableRecurring(Long transactionId, HttpSession session) {
+	public void disableRecurring(Long transactionId, HttpServletRequest session) {
 		Optional<Transaction> optionalTransaction = transactionRepository.findById(transactionId);
 		if (optionalTransaction.isPresent()) {
 			Transaction t = optionalTransaction.get();
