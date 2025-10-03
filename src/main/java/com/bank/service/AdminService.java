@@ -87,15 +87,26 @@ public class AdminService {
                 .toList();
     }
 
-    public String addAdminNote(Long customerId, String note) {
-        User user = userRepository.getUserById(customerId);
+    public String addAdminNote(Long userId, String note) {
+        User user = userRepository.getUserById(userId);
         if (user == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
         }
 
         user.setAdminNote(note);
         userRepository.save(user);
-        return "Note added for user " + customerId + ": " + note;
+        return "Note added for user " + userId + ": " + note;
+    }
+
+    public String deleteAdminNote(Long userId) {
+        User user = userRepository.getUserById(userId);
+        if (user == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
+        }
+        user.setAdminNote(null);
+        userRepository.save(user);
+
+        return "Note deleted for user " + userId + ": " + user.getAdminNote();
     }
 
     public List<Category> getAllCategories() {

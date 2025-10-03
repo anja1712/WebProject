@@ -64,7 +64,7 @@ public class TransactionController {
 		return "Recurring disabled for transaction " + id;
 	}
 
-	@GetMapping("/statistics")
+	@PostMapping("/statistics")
 	public TransactionOverview getStatisticsForTimePeriod(@RequestBody TransactionStatisticsRequest transactionStatisticsRequest,
 												   HttpServletRequest session) {
 		checkAccess(transactionStatisticsRequest.getUserId(), session);

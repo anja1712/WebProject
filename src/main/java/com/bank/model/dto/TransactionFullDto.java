@@ -1,5 +1,6 @@
 package com.bank.model.dto;
 
+import com.bank.model.enums.Frequency;
 import com.bank.model.enums.TransactionType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -22,4 +23,5 @@ public class TransactionFullDto {
     private Long userId;
     private Instant transactionDate;
     private Boolean recurring;
+    private Frequency frequency;
 }

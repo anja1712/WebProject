@@ -43,6 +43,12 @@ public class AdminController {
         return adminService.addAdminNote(id, note);
     }
 
+    @DeleteMapping("/users/{id}/note")
+    public String deleteAdminNote(@PathVariable Long id, HttpServletRequest request) {
+        checkAccess(request);
+        return adminService.deleteAdminNote(id);
+    }
+
     @GetMapping("/categories")
     public List<Category> getAllCategories(HttpServletRequest request) {
         checkAccess(request);
@@ -67,7 +73,7 @@ public class AdminController {
         return adminService.getDashboard();
     }
 
-    @GetMapping("/monitor")
+    @PostMapping("/monitor")
     public List<Transaction> transactionMonitoring(@RequestBody MonitoringRequest monitoringRequest, HttpServletRequest request) {
         checkAccess(request);
         return adminService.transactionMonitoring(monitoringRequest);
@@ -80,8 +86,7 @@ public class AdminController {
     }
 
     @GetMapping("/currencies/all")
-    public List<Currency> getCurrencies(HttpServletRequest request) {
-        checkAccess(request);
+    public List<Currency> getCurrencies() {
         return adminService.getCurrencies();
     }
 

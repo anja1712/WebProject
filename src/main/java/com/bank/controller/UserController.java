@@ -50,7 +50,7 @@ public class UserController {
         Object role = session.getAttribute("ROLE");
         Object currentUserId = session.getAttribute("USER_ID");
 
-        if (role == USER) {
+        if (role != null && role.equals(USER.toString())) {
             if (!currentUserId.equals(id)) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
             }
@@ -58,8 +58,9 @@ public class UserController {
 
         User user = userService.getUserById(id);
 
+        // Only show admin note to admins
         if (user.getAdminNote() != null) {
-            if (session.getAttribute("ROLE") != ADMIN) {
+            if (role == null || !role.equals(ADMIN.toString())) {
                 user.setAdminNote(null);
             }
         }

@@ -22,4 +22,5 @@ public class TransactionRequest {
     private Long destinationWalletId;
     private Boolean recurring;
     private Frequency frequency;
+    private String goal;
 }

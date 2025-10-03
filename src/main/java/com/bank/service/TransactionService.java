@@ -28,14 +28,14 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoField;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
 import static com.bank.model.enums.Role.USER;
-import static com.bank.model.enums.TransactionType.EXPENSE;
-import static com.bank.model.enums.TransactionType.INCOME;
+import static com.bank.model.enums.TransactionType.*;
 import static java.util.stream.Collectors.toList;
 
 @Service
@@ -46,6 +46,7 @@ public class TransactionService {
 	private final UserRepository userRepository;
 	private final CategoryRepository categoryRepository;
 	private final CurrencyRepository currencyRepository;
+	private final GoalRepository goalRepository;
 	private final DtoMapper dtoMapper;
 
 	@PostConstruct
@@ -84,7 +85,7 @@ public class TransactionService {
 		Category resultCategory = categoryRepository.findByNameAndTransactionTypeAndPredefinedTrue(request.getCategory(), request.getType());
 
 		if (resultCategory == null) {
-			resultCategory = categoryRepository.findByUserIdAndNameAndTransactionType(userId, request.getName(), request.getType());
+			resultCategory = categoryRepository.findByUserIdAndNameAndTransactionType(userId, request.getCategory(), request.getType());
 
 			if (resultCategory == null) {
 				resultCategory = Category.builder()
@@ -109,6 +110,14 @@ public class TransactionService {
 
 		Wallet updatedWallet = updateWalletBalance(amountInWalletCurrency, transactionToSave.getTransactionType(), wallet);
 		transactionToSave.setWallet(updatedWallet);
+
+		if (request.getGoal() != null) {
+			Goal goal = goalRepository.getGoalByName(request.getGoal());
+			if (goal != null) {
+				goal.setCurrentAmount(goal.getCurrentAmount().add(amountInWalletCurrency));
+				goalRepository.save(goal);
+			}
+		}
 
 		if (request.getRecurring() && request.getFrequency() != null) {
 			transactionToSave.setRecurring(true);
@@ -181,6 +190,26 @@ public class TransactionService {
 
 		walletRepository.save(fromWallet);
 		walletRepository.save(toWallet);
+
+		Instant currentDate = Instant.now();
+		LocalDateTime ldt = LocalDateTime.ofInstant(currentDate, ZoneId.systemDefault());
+		String now = ldt.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
+
+		Transaction transaction = Transaction.builder()
+				.name("Transfer from " + fromWallet.getName() + " to " + toWallet.getName() + " (" + now + ")")
+				.transactionDate(currentDate)
+				.amount(amount)
+				.category("Transfer")
+				.currency(fromWallet.getCurrency().getName().toString())
+				.transactionType(TransactionType.TRANSFER)
+				.wallet(fromWallet)
+				.sourceWallet(fromWallet)
+				.destinationWallet(toWallet)
+				.user(fromWallet.getUser())
+				.recurring(false)
+				.build();
+
+		transactionRepository.save(transaction);
 
 		return convertedAmount + " " + toWallet.getCurrency().getName()
 				+ " transferred from wallet " + fromWalletId + " to wallet " + toWalletId;
@@ -321,11 +350,11 @@ public class TransactionService {
 	}
 
 	private Instant calculateNextDate(Instant date, Frequency frequency) {
-        return switch (frequency) {
-            case DAILY -> date.plus(1, ChronoUnit.DAYS);
-            case WEEKLY -> date.plus(1, ChronoUnit.WEEKS);
-            case MONTHLY -> date.plus(1, ChronoUnit.MONTHS);
-        };
+		return switch (frequency) {
+			case DAILY -> date.plus(1, ChronoUnit.DAYS);
+			case WEEKLY -> date.plus(7, ChronoUnit.DAYS);
+			case MONTHLY -> date.plus(30, ChronoUnit.DAYS);
+		};
 	}
 
 
@@ -364,7 +393,22 @@ public class TransactionService {
 
 		wallet.setCurrentAmount(newAmount);
 		wallet.setModified(Instant.now());
+
+		adjustGoalsForWallet(wallet, newAmount);
+
 		return walletRepository.save(wallet);
+	}
+
+	private void adjustGoalsForWallet(Wallet wallet, BigDecimal newWalletBalance) {
+		List<Goal> goals = goalRepository.findByWalletId(wallet.getId());
+
+		for (Goal goal : goals) {
+			if (goal.getCurrentAmount().compareTo(newWalletBalance) > 0) {
+				goal.setCurrentAmount(newWalletBalance);
+				goal.setModified(Instant.now());
+				goalRepository.save(goal);
+			}
+		}
 	}
 
 	public void processRecurringTransactions() {

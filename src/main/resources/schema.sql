@@ -144,10 +144,18 @@ CREATE TABLE IF NOT EXISTS bank.category (
 ALTER TABLE bank.category OWNER TO bank007;
 GRANT ALL ON TABLE bank.category TO bank007;
 
+-- Drop old constraint if exists
 ALTER TABLE bank.category DROP CONSTRAINT IF EXISTS uq_category_name;
 
-ALTER TABLE bank.category
-    ADD CONSTRAINT uq_category_name UNIQUE(name);
+-- For user-created categories: unique per user+name+type
+CREATE UNIQUE INDEX IF NOT EXISTS idx_category_user_name_type
+    ON bank.category(user_id, name, transaction_type)
+    WHERE user_id IS NOT NULL;
+
+-- For predefined categories: unique per name+type
+CREATE UNIQUE INDEX IF NOT EXISTS idx_category_predefined_name_type
+    ON bank.category(name, transaction_type)
+    WHERE predefined = true;
 
 -- Seed category
 INSERT INTO bank.category (role, transaction_type, predefined, name, version, created)
@@ -163,8 +171,9 @@ VALUES
     ('ADMIN', 'EXPENSE',true, 'Shopping', 0, NOW()),
     ('ADMIN', 'EXPENSE',true, 'Insurance', 0, NOW()),
     ('ADMIN', 'INCOME',true, 'Investments', 0, NOW()),
-    ('ADMIN', 'INCOME',true, 'Savings', 0, NOW())
-ON CONFLICT (name) DO NOTHING;
+    ('ADMIN', 'INCOME',true, 'Savings', 0, NOW()),
+    ('ADMIN', 'TRANSFER',true, 'Transfer', 0, NOW())
+ON CONFLICT (name, transaction_type) WHERE predefined = true DO NOTHING;;
 
 -- Create transaction table
 CREATE TABLE IF NOT EXISTS bank.transaction (
