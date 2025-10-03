@@ -1,6 +1,7 @@
 package com.bank.model;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 
 import javax.validation.constraints.NotNull;
@@ -57,4 +58,14 @@ public class Goal extends AbstractEntity {
     @ManyToOne(fetch = FetchType.EAGER, optional = false)
     @JoinColumn(name = "wallet_id", nullable = false)
     private Wallet wallet;
+
+
+    public BigDecimal calculatePercentReached() {
+        if (goalAmount == null || goalAmount.compareTo(BigDecimal.ZERO) == 0) {
+            return BigDecimal.ZERO;
+        }
+        return currentAmount
+                .divide(goalAmount, 2, RoundingMode.HALF_UP)
+                .multiply(BigDecimal.valueOf(100));
+    }
 }

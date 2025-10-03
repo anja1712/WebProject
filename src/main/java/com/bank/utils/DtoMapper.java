@@ -29,7 +29,8 @@ public interface DtoMapper {
 
     @Mapping(target = "userId", source = "user.id")
     @Mapping(target = "walletId", source = "wallet.id")
-    GoalDto toDto(Goal wallet);
+    @Mapping(target = "percentReached", expression = "java(goal.calculatePercentReached())")
+    GoalDto toDto(Goal goal);
 
     @Mapping(target = "userId", source = "user.id")
     @Mapping(target = "walletId", source = "wallet.id")

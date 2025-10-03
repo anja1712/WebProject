@@ -23,7 +23,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String requestPath = request.getRequestURI();
         System.out.println("JWT Filter checking path: " + requestPath);
 
-        if (requestPath.startsWith("/bank/api/auth/") || requestPath.startsWith("/auth/")) {
+        if (requestPath.contains("/auth/login") ||
+                requestPath.contains("/auth/signup") ||
+                requestPath.contains("/auth/logout")) {
             filterChain.doFilter(request, response);
             return;
         }

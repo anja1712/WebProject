@@ -27,6 +27,9 @@ public enum CurrencyType {
 		RON, // Romanian Leu
 		BGN, // Bulgarian Lev
 		RSD, // Serbian Dinar
+	    RUB, // Russian Ruble
+	    UAH, // Ukrainian Hryvna
+
 
 		// Asia
 		INR, // Indian Rupee

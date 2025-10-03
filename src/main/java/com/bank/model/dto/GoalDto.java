@@ -17,6 +17,7 @@ public class GoalDto {
     private Long walletId;
     private BigDecimal goalAmount;
     private BigDecimal currentAmount;
+    private BigDecimal percentReached;
     private Instant startDate;
     private Instant targetDate;
 }

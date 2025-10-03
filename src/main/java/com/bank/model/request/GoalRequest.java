@@ -13,6 +13,7 @@ import java.time.Instant;
 public class GoalRequest {
     private String name;
     private Long walletId;
+    private BigDecimal currentAmount;
     private BigDecimal goalAmount;
     private Instant targetDate;
 }

@@ -14,6 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -44,7 +45,11 @@ public class GoalService {
 
         Goal goal = new Goal();
         goal.setName(goalRequest.getName());
-        goal.setCurrentAmount(wallet.getCurrentAmount());
+        goal.setCurrentAmount(
+                goalRequest.getCurrentAmount() != null
+                        ? goalRequest.getCurrentAmount()
+                        : BigDecimal.ZERO
+        );
         goal.setGoalAmount(goalRequest.getGoalAmount());
         goal.setWallet(wallet);
         goal.setUser(userRepository.findById(userId).get());
