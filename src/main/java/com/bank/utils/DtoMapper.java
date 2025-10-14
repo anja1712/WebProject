@@ -4,12 +4,9 @@ import com.bank.model.Goal;
 import com.bank.model.Transaction;
 import com.bank.model.User;
 import com.bank.model.Wallet;
-import com.bank.model.dto.GoalDto;
-import com.bank.model.dto.TransactionFullDto;
-import com.bank.model.dto.UserDto;
+import com.bank.model.dto.*;
 
 
-import com.bank.model.dto.WalletDto;
 import org.mapstruct.MappingConstants;
 import org.mapstruct.ReportingPolicy;
 import org.mapstruct.Mapper;
@@ -36,4 +33,9 @@ public interface DtoMapper {
     @Mapping(target = "walletId", source = "wallet.id")
     @Mapping(target = "type", source = "transactionType")
     TransactionFullDto toDto(Transaction transaction);
+
+    @Mapping(target = "userId", source = "user.id")
+    @Mapping(target = "type", source = "transactionType")
+    @Mapping(target=  "date", source = "transactionDate")
+    TransactionViewDto toViewDto(Transaction transaction);
 }

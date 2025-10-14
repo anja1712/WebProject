@@ -43,13 +43,16 @@ public class GoalService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Need to select savings wallet");
         }
 
+        BigDecimal currentAmount = goalRequest.getCurrentAmount() != null
+                ? goalRequest.getCurrentAmount()
+                : BigDecimal.ZERO;
+        if (currentAmount.compareTo(goalRequest.getGoalAmount()) > 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Current amount cannot exceed target amount");
+        }
+
         Goal goal = new Goal();
         goal.setName(goalRequest.getName());
-        goal.setCurrentAmount(
-                goalRequest.getCurrentAmount() != null
-                        ? goalRequest.getCurrentAmount()
-                        : BigDecimal.ZERO
-        );
+        goal.setCurrentAmount(currentAmount);
         goal.setGoalAmount(goalRequest.getGoalAmount());
         goal.setWallet(wallet);
         goal.setUser(userRepository.findById(userId).get());
@@ -77,6 +80,15 @@ public class GoalService {
 
         if (request.getGoalAmount() != null) {
             goal.setGoalAmount(request.getGoalAmount());
+        }
+
+        if (request.getCurrentAmount() != null) {
+            // Validate that current amount doesn't exceed goal amount
+            BigDecimal goalAmount = request.getGoalAmount() != null ? request.getGoalAmount() : goal.getGoalAmount();
+            if (request.getCurrentAmount().compareTo(goalAmount) > 0) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Current amount cannot exceed target amount");
+            }
+            goal.setCurrentAmount(request.getCurrentAmount());
         }
 
         if (request.getWalletId() != null) {

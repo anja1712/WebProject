@@ -2,7 +2,6 @@ package com.bank.controller;
 
 import com.bank.model.Category;
 import com.bank.model.Currency;
-import com.bank.model.Transaction;
 import com.bank.model.dto.Dashboard;
 import com.bank.model.dto.TransactionViewDto;
 import com.bank.model.enums.Role;
@@ -74,7 +73,7 @@ public class AdminController {
     }
 
     @PostMapping("/monitor")
-    public List<Transaction> transactionMonitoring(@RequestBody MonitoringRequest monitoringRequest, HttpServletRequest request) {
+    public List<TransactionViewDto> transactionMonitoring(@RequestBody MonitoringRequest monitoringRequest, HttpServletRequest request) {
         checkAccess(request);
         return adminService.transactionMonitoring(monitoringRequest);
     }

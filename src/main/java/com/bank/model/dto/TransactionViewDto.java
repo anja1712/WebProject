@@ -13,7 +13,9 @@ import java.time.Instant;
 @AllArgsConstructor
 public class TransactionViewDto {
     private String name;
+    private Long userId;
     private TransactionType type;
+    private String category;
     private String currency;
     private BigDecimal amount;
     private Instant date;

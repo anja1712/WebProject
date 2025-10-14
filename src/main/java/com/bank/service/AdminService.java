@@ -12,6 +12,7 @@ import com.bank.model.enums.UserStatus;
 import com.bank.model.request.CurrencyRequest;
 import com.bank.model.request.MonitoringRequest;
 import com.bank.repository.*;
+import com.bank.utils.DtoMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -27,6 +28,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Service
@@ -37,6 +39,7 @@ public class AdminService {
     private final CurrencyRepository currencyRepository;
     private final TransactionRepository transactionRepository;
     private final WalletRepository walletRepository;
+    private final DtoMapper dtoMapper;
 
     // block / unblock user
     public String changeCustomerStatus(Long id, UserStatus targetStatus) {
@@ -80,6 +83,7 @@ public class AdminService {
                 .map(t -> TransactionViewDto.builder()
                         .name(t.getName())
                         .type(t.getTransactionType())
+                        .category(t.getCategory())
                         .amount(t.getAmount())
                         .date(t.getTransactionDate())
                         .currency(t.getCurrency())
@@ -237,7 +241,7 @@ public class AdminService {
         return amount.multiply(toRate).divide(fromRate, 2, RoundingMode.HALF_UP);
     }
 
-    public List<Transaction> transactionMonitoring(MonitoringRequest request) {
+    public List<TransactionViewDto> transactionMonitoring(MonitoringRequest request) {
         List<Transaction> transactions = transactionRepository.findAll();
 
         Stream<Transaction> stream = transactions.stream();
@@ -273,7 +277,8 @@ public class AdminService {
             stream = stream.sorted(Comparator.comparing(Transaction::getAmount));
         }
 
-        return stream.toList();
+        return stream.map(dtoMapper::toViewDto)
+                .collect(Collectors.toList());
     }
 
 }
