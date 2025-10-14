@@ -16,6 +16,7 @@ public class UserDto {
     private String firstName;
     private String lastName;
     private String email;
+    private Instant birthDate;
     private Role role;
     private Instant created;
 }

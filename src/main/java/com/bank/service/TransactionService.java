@@ -310,15 +310,38 @@ public class TransactionService {
 					BigDecimal converted = t.getAmount().multiply(targetCurrency.getCurrencyValue())
 							.divide(c.getCurrencyValue(), 2, RoundingMode.HALF_UP);
 
-					return Map.entry(t.getId() + " - " + t.getName(), converted);
+					return Map.entry(t.getName() + " - " + t.getTransactionDate().toString(), converted);
 				})
 				.collect(Collectors.toList());
+
+		List<Map.Entry<String, BigDecimal>> topTwoMinuteTransactions = expenseTransactions.stream()
+				.sorted((t1, t2) -> {
+					Currency c1 = currencyRepository.getCurrencyByName(CurrencyType.valueOf(t1.getCurrency()));
+					Currency c2 = currencyRepository.getCurrencyByName(CurrencyType.valueOf(t2.getCurrency()));
+
+					BigDecimal a1 = t1.getAmount().multiply(targetCurrency.getCurrencyValue())
+							.divide(c1.getCurrencyValue(), 2, RoundingMode.HALF_UP);
+					BigDecimal a2 = t2.getAmount().multiply(targetCurrency.getCurrencyValue())
+							.divide(c2.getCurrencyValue(), 2, RoundingMode.HALF_UP);
+
+					return a1.compareTo(a2);
+				})
+				.limit(2)
+				.map(t -> {
+					Currency c = currencyRepository.getCurrencyByName(CurrencyType.valueOf(t.getCurrency()));
+					BigDecimal converted = t.getAmount().multiply(targetCurrency.getCurrencyValue())
+							.divide(c.getCurrencyValue(), 2, RoundingMode.HALF_UP);
+
+					return Map.entry(t.getName() + " - " + t.getTransactionDate().toString(), converted);
+				})
+				.toList();
 
 		return TransactionOverview.builder()
 				.income(incomeSum)
 				.expense(expenseSum)
 				.transactionsByCategories(categoriesDisplay)
 				.topTenExpenses(topTenExpenses)
+				.topTwoMinuteTransactions(topTwoMinuteTransactions)
 				.build();
 	}
 

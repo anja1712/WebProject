@@ -16,4 +16,5 @@ public class TransactionOverview {
     private BigDecimal expense;
     private Map<String, BigDecimal> transactionsByCategories;
     private List<Map.Entry<String, BigDecimal>> topTenExpenses;
+    private List<Map.Entry<String, BigDecimal>> topTwoMinuteTransactions;
 }
