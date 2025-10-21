@@ -20,6 +20,7 @@ public class TransactionFullDto {
     private TransactionType type;
     private BigDecimal amount;
     private Long walletId;
+    private String walletName;
     private Long userId;
     private Instant transactionDate;
     private Boolean recurring;
