@@ -31,6 +31,7 @@ public interface DtoMapper {
 
     @Mapping(target = "userId", source = "user.id")
     @Mapping(target = "walletId", source = "wallet.id")
+    @Mapping(target = "walletName", source = "wallet.name")
     @Mapping(target = "type", source = "transactionType")
     TransactionFullDto toDto(Transaction transaction);
 

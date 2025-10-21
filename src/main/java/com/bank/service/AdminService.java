@@ -272,13 +272,48 @@ public class AdminService {
 
         // sortiranje
         if (request.isSortByDate()) {
-            stream = stream.sorted(Comparator.comparing(Transaction::getTransactionDate));
+            stream = stream.sorted(Comparator.comparing(Transaction::getTransactionDate).reversed());
         } else if (request.isSortByAmount()) {
-            stream = stream.sorted(Comparator.comparing(Transaction::getAmount));
+            // Get target currency for conversion (EUR)
+            Currency targetCurrency = currencyRepository.getCurrencyByName(CurrencyType.EUR);
+            if (targetCurrency == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Target currency EUR not found");
+            }
+
+            // Sort by amount converted to target currency
+            stream = stream.sorted((t1, t2) -> {
+                BigDecimal amount1InEUR = convertTransactionToTargetCurrency(t1, targetCurrency);
+                BigDecimal amount2InEUR = convertTransactionToTargetCurrency(t2, targetCurrency);
+                return amount2InEUR.compareTo(amount1InEUR);
+            });
         }
 
         return stream.map(dtoMapper::toViewDto)
                 .collect(Collectors.toList());
+    }
+
+    private BigDecimal convertTransactionToTargetCurrency(Transaction transaction, Currency targetCurrency) {
+        try {
+            Currency transactionCurrency = currencyRepository.getCurrencyByName(
+                    CurrencyType.valueOf(transaction.getCurrency())
+            );
+
+            if (transactionCurrency == null) {
+                return transaction.getAmount();
+            }
+
+            if (transactionCurrency.getId() == targetCurrency.getId()) {
+                return transaction.getAmount();
+            }
+
+            BigDecimal fromRate = transactionCurrency.getCurrencyValue();
+            BigDecimal toRate = targetCurrency.getCurrencyValue();
+            return transaction.getAmount()
+                    .multiply(toRate)
+                    .divide(fromRate, 2, RoundingMode.HALF_UP);
+        } catch (Exception e) {
+            return transaction.getAmount();
+        }
     }
 
 }
